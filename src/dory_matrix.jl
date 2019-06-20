@@ -28,12 +28,12 @@ struct MyStyle <: Base.BroadcastStyle end
 bcstyle = Broadcast.Broadcasted{MyStyle,
                                  Tuple{Base.OneTo{Int64},Base.OneTo{Int64}},
                                  S,
-                                 Tuple{Hecke.Generic.Mat{T}}} where S<:Function where T
+                                 Tuple{Hecke.Generic.MatSpaceElem{T}}} where S<:Function where T
 
     
 
-Base.BroadcastStyle(::Type{<:Hecke.Generic.Mat{T}} where T) = MyStyle()
-Base.broadcastable(A::Hecke.Generic.Mat{T} where T) = deepcopy(A)
+Base.BroadcastStyle(::Type{<:Hecke.Generic.MatSpaceElem{T}} where T) = MyStyle()
+Base.broadcastable(A::Hecke.Generic.MatSpaceElem{T} where T) = deepcopy(A)
 
 
 function Base.similar(bc::bcstyle,t::Type{T} where T<:NCRingElem)
@@ -72,7 +72,7 @@ function Base.similar(bc::bcstyle,t::Type{T} where T)
 end
 
 
-function Base.copyto!(X::Hecke.Generic.Mat{T} where T, bc::bcstyle)
+function Base.copyto!(X::Hecke.Generic.MatSpaceElem{T} where T, bc::bcstyle)
     Y = bc.args[1]
     X.entries = bc.f.(Y.entries)
     X.base_ring = Y.base_ring    
@@ -97,7 +97,7 @@ end
 find_nemo_mat(bc::Base.Broadcast.Broadcasted) = find_nemo_mat(bc.args)
 find_nemo_mat(args::Tuple) = find_nemo_mat(find_nemo_mat(args[1]), Base.tail(args))
 find_nemo_mat(x) = x
-find_nemo_mat(a::Hecke.Generic.Mat, rest) = a
+find_nemo_mat(a::Hecke.Generic.MatSpaceElem, rest) = a
 find_nemo_mat(::Any, rest) = find_nemo_mat(rest)
 
 
