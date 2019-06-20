@@ -41,6 +41,7 @@ end
 
 include("dory_matrix.jl")
 include("padic_util.jl")
+include("polynomial_ext.jl")
 
 function __init__()
 
