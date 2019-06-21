@@ -108,23 +108,23 @@ find_nemo_mat(::Any, rest) = find_nemo_mat(rest)
 #  Conveinence Interface
 ###################################################################
 
-function Base.getindex(A::Hecke.Generic.Mat{T} where T, koln::Colon, I::Array{Int64,1})
+function Base.getindex(A::Hecke.Generic.MatSpaceElem{T} where T, koln::Colon, I::Array{Int64,1})
     return matrix(A.base_ring, A.entries[koln,I])
 end
 
-function Base.getindex(A::Hecke.Generic.Mat{T} where T, I::Array{Int64,1}, koln::Colon)
+function Base.getindex(A::Hecke.Generic.MatSpaceElem{T} where T, I::Array{Int64,1}, koln::Colon)
     return matrix(A.base_ring, A.entries[I,koln])
 end
 
-function Base.getindex(A::Hecke.Generic.Mat{T} where T, I::Array{Int64,1}, J::Array{Int64,1})
+function Base.getindex(A::Hecke.Generic.MatSpaceElem{T} where T, I::Array{Int64,1}, J::Array{Int64,1})
     return matrix(A.base_ring, A.entries[I,J])
 end
 
-function Base.getindex(A::Hecke.Generic.Mat{T} where T, I::CartesianIndex{2})
+function Base.getindex(A::Hecke.Generic.MatSpaceElem{T} where T, I::CartesianIndex{2})
     return A[I[1],I[2]]
 end
 
-function Base.setindex!(A::Hecke.Generic.Mat{T} where T, x, I::CartesianIndex{2})
+function Base.setindex!(A::Hecke.Generic.MatSpaceElem{T} where T, x, I::CartesianIndex{2})
     return setindex!(A,x,I[1],I[2])
 end
 
@@ -133,7 +133,7 @@ end
 #    return iterate(A.entries, state)
 #end
 
-function Base.collect(A::Hecke.Generic.Mat{T}, state=1) where T
+function Base.collect(A::Hecke.Generic.MatSpaceElem{T}, state=1) where T
     return A.entries
 end
 
@@ -146,9 +146,14 @@ function Hecke.matrix(A::Array{Array{T,1},1} where T <: Hecke.NCRingElem)
     return matrix( hcat(A...) )
 end
 
-function Hecke.matrix(R, A::Array{Array{T,1},1} where T <: Hecke.NCRingElem)
+function Hecke.matrix(R::Hecke.Nemo.AbstractAlgebra.NCRing, A::Array{Array{T,1},1} where T)
     return matrix( R, hcat(A...) )
 end
+
+
+# function Hecke.matrix(R, A::Array{Array{T,1},1} where T <: Hecke.NCRingElem)
+#     return matrix( R, hcat(A...) )
+# end
 
 # Conversion to Julia matrices.
 # ...
