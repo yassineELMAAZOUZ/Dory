@@ -24,8 +24,9 @@ import Hecke: Generic.Mat, Generic.MatElem, nmod_mat, charpoly
 ## Export the namespace of Hecke for use after Dory
 
 exclude = [ :AbstractAlgebra, :CoerceMap, :CoerceMap, :Hecke, :Nemo, :RealField, :ResidueRingPolyMap,
-            :_hnf_modular, :call, :can_solve, :cols, :den, :factor, :factors, :inverse, :isid, :num,
-            :parseint, :qq, :random_SMatSLP, :rows, :strongequal, :upper_triangular, :wedderburn_decomposition,
+            :_hnf_modular, :call, :can_solve, :cols, :den,  :inverse, :isid, :num,
+            :parseint, :pmaximal_order, :qq, :random_SMatSLP, :rows, :strongequal,
+            :update, :upper_triangular, :wedderburn_decomposition,
             :window, :xgcd, :zz ]
 
 
