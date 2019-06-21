@@ -1,2 +1,17 @@
-# Dory
-Various extensions to the Nemo/Hecke libraries.
+
+=== Dory.jl ===
+
+Package to extend the functionality of Nemo/Hecke. Notable additions include:
+
+Basic utilities
+-- Allows Julia broadcasting for AbstractAlgebra matrices.
+-- Convenient constructors for AbstractAlgebra matrices.
+-- Indexing functions for AbstractAlgebra matrices.
+
+padic linear algebra:
+-- padic qr-factorization.
+-- padic singular value decomposition.
+-- padically stable solving of linear systems.
+-- padically stable hessenburg form.
+-- eigenvector solver (power and inverse iterations). [Only implemented for matrices defined over Qp]
+-- block schur form. [Only implemented for matrices defined over Qp]
