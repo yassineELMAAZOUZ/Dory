@@ -133,6 +133,14 @@ struct QRPadicPivoted
     q::Array{Int64,1}
 end
 
+struct QRPadicSparsePivoted
+    Q::Hecke.Generic.MatElem{padic}
+    R::Hecke.SMat{padic}
+    p::Array{Int64,1}
+    q::Array{Int64,1}
+end
+
+
 function padic_qr(A::Hecke.Generic.MatElem{padic};
                   col_pivot=Val(false) :: Union{Val{true},Val{false}})
 
@@ -336,6 +344,189 @@ end
 #     # x.N = something...
 #     return x
 # end
+
+#######################################################################################
+
+# Sparse QR-algorithm
+
+#######################################################################################
+
+
+function padic_qr(A::Hecke.SMat{padic};
+                  col_pivot=Val(false) :: Union{Val{true},Val{false}})
+
+    if col_pivot==Val(true)
+        error("Sparse elimination with column pivoting is not implemented.")
+    end
+    
+    # Set constants
+    n = size(A,1)::Int64
+    m = size(A,2)::Int64
+    basezero = zero(A.base_ring)
+    
+    L= identity_matrix(A.base_ring,n)
+    Lent = L.entries::Array{padic,2}
+    U= deepcopy(A)
+    
+    P= Array(1:n)
+    Pcol=Array(1:m)
+
+    # We cache the maximum value of the matrix at each step, so we save an iteration pass
+    # through the matrix.
+    # val_list = float64_valuation.(U)
+    # min_val, min_val_index = findmin( val_list );
+    
+    # Allocate specific working memory for multiplications.
+    container_for_swap    = padic(U[1,1].N)
+    container_for_product = padic(U[1,1].N)
+    container_for_div     = padic(U[1,1].N)
+
+    # Allocate a function to zero consecutive entries of a column
+    # It is assumed that the first k-1 entries are zero.
+    function zero_subdiagonal_of_column!(U,k::Int64)
+        for j = k+1:n
+            if U[j].pos[1] == k
+                deleteat!(U[j].pos,1)
+                deleteat!(U[j].values,1)
+            end
+        end
+    end
+    
+    
+    # Allocate a 2-element array to hold the index of the maximum valuation.
+    # min_val_index_mut = [x for x in min_val_index.I]
+
+        
+    for k=1:(min(n,m)::Int64)
+
+        # if col_pivot==Val(true)
+        #     col_index=min_val_index_mut[2]
+        #     if col_index!=k
+        #         # interchange columns m and k in U
+        #         for r=1:n
+        #             U[r,k], U[r,col_index] = U[r,col_index], U[r,k]
+        #         end
+                
+        #         # interchange entries m and k in Pcol
+        #         Pcol[k], Pcol[col_index] = Pcol[col_index], Pcol[k]
+        #     end
+        # end
+        
+        #val_list = [float64_valuation(srow[1]) for srow in U ]
+
+        display(modp.(matrix(U)))
+        println()
+        
+        val_dict = Dict( srow.pos[1] => float64_valuation(srow[1])
+                         for srow in U.rows[k:n] if srow.pos[1]==k )
+
+        display(val_dict)
+        
+        if isempty(val_dict)
+            minn, row_pivot_index = (Inf,k)
+        else
+            minn, row_pivot_index = findmin( val_dict )
+        end
+        
+        if minn==Inf continue end
+
+        row_pivot_index=row_pivot_index+k-1
+        if row_pivot_index!=k
+
+            # interchange rows `row_pivot_index` and `k` in U
+            Hecke.swap_rows!(U,k,row_pivot_index)
+            
+            # interchange entries `row_pivot_index` and k in P
+            P[k],P[row_pivot_index] = P[row_pivot_index],P[k]
+
+            # swap columns corresponding to the row operations already done.
+            swap_prefix_of_row!(Lent, k, row_pivot_index)
+        end
+
+        # Reset min_valuation for selecting new pivot.
+        min_val = Inf
+
+
+        if iszero(U[k,k])
+            # If col_pivot == true, then we don't need to perform further column swaps
+            # in this case, since the element of largest valuation in the lower-right
+            # block is zero. In fact, no further operations need to be performed.
+            continue
+        end 
+
+        # Cache the values of L[j,k] before the row operations.
+        #
+        # The use of the inversion command preserves relative precision. By row-pivoting,
+        # the extra powers of p cancel to give the correct leading term.
+        # the "lost" digits of precision for L[j,k] can simply be set to 0.
+        container_for_inv = inv(U[k,k]) 
+        
+        for j=k+1:n
+            Hecke.mul!(L[j,k],U[j,k], container_for_inv)
+            L[j,k].N = parent(L[j,k]).prec_max            # L[j,k] is really an integer.
+        end
+        
+        #zero_subdiagonal_of_column!(U,k)
+        
+        for j=k+1:n
+            if U[j].pos[1] == k
+
+                display(U.rows[j])
+                
+                Hecke.add_scaled_row!(U, k, j, -L[j,k])
+
+                display(U.rows[j])
+                println()
+                
+                #deleteat!(U[j].pos,1)
+                #deleteat!(U[j].values,1)
+            end
+            
+            # Update the smallest valuation element.
+            # if U[j].pos[1] == k+1 && float64_valuation(U[j][1]) < min_val
+            #     min_val = float64_valuation(U[j,r])
+            #     min_val_index_mut[1] = j
+            #     min_val_index_mut[2] = k+1
+            # end
+            
+            # for r=k+1:m
+            #     # Compute U[j,r] = U[j,r] - L[j,k]*U[k,r]                
+            #     Hecke.mul!(container_for_product, L[j,k], U[k,r])
+            #     _unsafe_minus!(U[j,r], container_for_product)
+                
+            #     # Update the smallest valuation element
+            #     if float64_valuation(U[j,r]) < min_val
+            #         min_val = float64_valuation(U[j,r])
+            #         min_val_index_mut[1] = j
+            #         min_val_index_mut[2] = r
+            #     end
+            # end            
+        end
+    end
+
+    Umat = matrix(U)
+
+    display(modp.(matrix(A)))
+    println()
+    
+    display(modp.(Umat))
+    println()
+    
+    display(modp.(L))
+    println()
+
+    display(P)
+    println()
+    
+    display(modp.(matrix(A)[P,Pcol] - L*Umat))
+    
+    @assert iszero(Umat[P,Pcol] - L*Umat)
+
+    return QRPadicSparsePivoted(L,U,P,Pcol)
+end
+
+
+########################################################################################
 
 # IMPORTANT!
 # We deviate slightly from LinearAlgebra's SVD structure by putting a diagonal matrix for S.
