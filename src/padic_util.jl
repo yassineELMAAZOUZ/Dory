@@ -405,15 +405,17 @@ function padic_qr(A::Hecke.SMat{padic};
 
             # update the list of row operations to perform
             if iszero(U[row_pivot_index,k])
-                setdiff!(rows_with_entry_at_k, [row_pivot_index])
+                filter!(x-> x!=row_pivot_index , rows_with_entry_at_k)
             end
         end
 
         if isempty(rows_with_entry_at_k) continue end
         
         container_for_inv = inv(U[k,k])
-        deleteat!(rows_with_entry_at_k,1) # Drop k from the list of rows to iterate over.
-                
+        filter!(x->x!=k, rows_with_entry_at_k) # Drop k from the list of rows to iterate over.
+
+        display(rows_with_entry_at_k)
+        
         for j in rows_with_entry_at_k
             
             # The "lost" digits of precision for L[j,k] can simply be set to 0.
