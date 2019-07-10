@@ -378,17 +378,27 @@ function padic_qr(A::Hecke.SMat{padic};
     # Function to select the row pivot and the list of rows with a non-zero entry at index k.
     # in the subdiagonal.
     # return -1 and an empty array if all the sub-diagonal is zero.
-    function select_row_indices_and_pivot(U, k, piv)
+    function pivot_and_select_row_indices(U, Lent, k, piv)
         
         valuation_index_pairs = [ (valuation(U[j, piv]), j) for j=k:n if !iszero(U[j, piv]) ]
                  
-        if isempty(valuation_index_pairs)
-            row_pivot_index = -1
-        else
+        if !isempty(valuation_index_pairs)
+
             row_pivot_index = last(minimum(valuation_index_pairs))
-        end
+            
+            if row_pivot_index!=k
+                Hecke.swap_rows!(U,k,row_pivot_index)
+                P[k],P[row_pivot_index] = P[row_pivot_index],P[k]
+
+                # swap columns corresponding to the row operations already done.
+                swap_prefix_of_row!(Lent, k, row_pivot_index)
+            end
+
+            # Remove k or leading zeros from the list of rows to iterate over.
+            # (Leading zeros can be introduced by a swap.)
+            filter!(j->(j!=k && !iszero(U[j,piv])), rows_with_entry_at_piv)
         
-        return row_pivot_index, last.(valuation_index_pairs)
+        return last.(valuation_index_pairs)
     end
 
     # Initialize the shift index to determine the critial pivot location.
@@ -401,29 +411,13 @@ function padic_qr(A::Hecke.SMat{padic};
         
         # set the pivot column and determine the rows to apply elimination.
         piv = k + shift
-        row_pivot_index, rows_with_entry_at_piv = select_row_indices_and_pivot(U, k, piv )
+        rows_with_entry_at_piv = pivot_and_select_row_indices(U, Lent, k, piv )
 
         # If everything is zero, shift the algorithm to operate on the
         # right rectangular submatrix window.
-        if isempty(rows_with_entry_at_piv) shift+=1; continue; end        
+        if isempty(rows_with_entry_at_piv) shift+=1; continue; end   
 
         
-        if row_pivot_index!=k
-            Hecke.swap_rows!(U,k,row_pivot_index)
-            P[k],P[row_pivot_index] = P[row_pivot_index],P[k]
-
-            # swap columns corresponding to the row operations already done.
-            swap_prefix_of_row!(Lent, k, row_pivot_index)
-
-            # update the list of row operations to perform
-            if iszero(U[row_pivot_index, piv])
-                filter!(x-> x!=row_pivot_index , rows_with_entry_at_piv)
-            end
-        end
-
-        filter!(x->x!=k, rows_with_entry_at_piv) # Remove k from the list of rows to iterate over.
-
-
         ### Row operations loop ###
         container_for_inv = inv(U[k,piv])
         
@@ -433,26 +427,12 @@ function padic_qr(A::Hecke.SMat{padic};
             # as L[j,k] is really an integer.
             Hecke.mul!(L[j,k],U[j,piv], container_for_inv)
 
-            if L[j,k].N < prec(parent(L[j,k]))
-                L[j,k].N = prec(parent(L[j,k]))
-            end
+            if L[j,k].N < prec(parent(L[j,k]))  [j,k].N = prec(parent(L[j,k])) end
             
-            try
-                if L[j,k] != 0
-                    Hecke.add_scaled_row!(U, k, j, -L[j,k])
-                elseif valuation(L[j,k]) < prec(parent(L[j,k]))
-                    error("Somethings has gone horribly wrong.")
-                end
-                    
-            catch e
-                println(k, "\n")
-                
-                valuation_index_pairs = [ (valuation(U[j,piv]), j)
-                                          for j=k:n if !iszero(U[j,piv])]
-                display(valuation_index_pairs)
-                display(valuation.(matrix(U)))
-                modp.(matrix(U))
-                error(e)
+            if L[j,k] != 0
+                Hecke.add_scaled_row!(U, k, j, -L[j,k])
+            elseif valuation(L[j,k]) < prec(parent(L[j,k]))
+                error("Problem related to Hecke's `add_scaled_row` function encountered.")
             end
         end
 
