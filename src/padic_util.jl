@@ -21,7 +21,11 @@ import Hecke.valuation
 function +(x::padic) return x end
 function /(x::padic,y::padic) return x//y end
 
+# Access to the precision fields.
+function precision(Qp::FlintPadicField) return Qp.prec_max end
+function prec(Qp::FlintPadicField) return Qp.prec_max end
 
+    
 # Potential fix for the bug with the valuation function
 # Note: there may be issues if Hecke depends on the
 # valuation being non-infinite.
@@ -104,7 +108,7 @@ end
 function factor(f :: Hecke.Generic.Poly{padic})
     QpX = f.parent
     Qp = QpX.base_ring
-    N = Qp.prec_max
+    N = prec(Qp)
     
     f_int = lift(f)
     H = factor_mod_pk_init(f_int,Qp.p)
@@ -371,156 +375,78 @@ function padic_qr(A::Hecke.SMat{padic};
     P= Array(1:n)
     Pcol=Array(1:m)
 
-    # We cache the maximum value of the matrix at each step, so we save an iteration pass
-    # through the matrix.
-    # val_list = float64_valuation.(U)
-    # min_val, min_val_index = findmin( val_list );
-    
-    # Allocate specific working memory for multiplications.
-    container_for_swap    = padic(U[1,1].N)
-    container_for_product = padic(U[1,1].N)
-    container_for_div     = padic(U[1,1].N)
-
-    # Allocate a function to zero consecutive entries of a column
-    # It is assumed that the first k-1 entries are zero.
-    function zero_subdiagonal_of_column!(U,k::Int64)
-        for j = k+1:n
-            if U[j].pos[1] == k
-                deleteat!(U[j].pos,1)
-                deleteat!(U[j].values,1)
-            end
-        end
-    end
-    
-    
-    # Allocate a 2-element array to hold the index of the maximum valuation.
-    # min_val_index_mut = [x for x in min_val_index.I]
-
+    # Function to select the row pivot and the list of rows with a non-zero entry at index k.
+    # in the subdiagonal.
+    # return -1 and an empty array if all the sub-diagonal is zero.
+    function select_row_indices_and_pivot(U,k)
         
-    for k=1:(min(n,m)::Int64)
-
-        # if col_pivot==Val(true)
-        #     col_index=min_val_index_mut[2]
-        #     if col_index!=k
-        #         # interchange columns m and k in U
-        #         for r=1:n
-        #             U[r,k], U[r,col_index] = U[r,col_index], U[r,k]
-        #         end
-                
-        #         # interchange entries m and k in Pcol
-        #         Pcol[k], Pcol[col_index] = Pcol[col_index], Pcol[k]
-        #     end
-        # end
-        
-        #val_list = [float64_valuation(srow[1]) for srow in U ]
-
-        display(modp.(matrix(U)))
-        println()
-        
-        val_dict = Dict( srow.pos[1] => float64_valuation(srow[1])
-                         for srow in U.rows[k:n] if srow.pos[1]==k )
-
-        display(val_dict)
-        
-        if isempty(val_dict)
-            minn, row_pivot_index = (Inf,k)
+        valuation_index_pairs = [ (valuation(U[j,k]), j) for j=k:n if !iszero(U[j,k]) ]
+                 
+        if isempty(valuation_index_pairs)
+            row_pivot_index = -1
         else
-            minn, row_pivot_index = findmin( val_dict )
+            row_pivot_index = last(minimum(valuation_index_pairs))
         end
         
-        if minn==Inf continue end
+        return row_pivot_index, last.(valuation_index_pairs)
+    end
 
-        row_pivot_index=row_pivot_index+k-1
-        if row_pivot_index!=k
-
-            # interchange rows `row_pivot_index` and `k` in U
+    
+    for k=1:(min(n,m)::Int64)
+        
+        row_pivot_index, rows_with_entry_at_k = select_row_indices_and_pivot(U,k)
+                    
+        if row_pivot_index != -1 && row_pivot_index!=k
             Hecke.swap_rows!(U,k,row_pivot_index)
-            
-            # interchange entries `row_pivot_index` and k in P
             P[k],P[row_pivot_index] = P[row_pivot_index],P[k]
 
             # swap columns corresponding to the row operations already done.
             swap_prefix_of_row!(Lent, k, row_pivot_index)
+
+            # update the list of row operations to perform
+            if iszero(U[row_pivot_index,k])
+                setdiff!(rows_with_entry_at_k, [row_pivot_index])
+            end
         end
 
-        # Reset min_valuation for selecting new pivot.
-        min_val = Inf
-
-
-        if iszero(U[k,k])
-            # If col_pivot == true, then we don't need to perform further column swaps
-            # in this case, since the element of largest valuation in the lower-right
-            # block is zero. In fact, no further operations need to be performed.
-            continue
-        end 
-
-        # Cache the values of L[j,k] before the row operations.
-        #
-        # The use of the inversion command preserves relative precision. By row-pivoting,
-        # the extra powers of p cancel to give the correct leading term.
-        # the "lost" digits of precision for L[j,k] can simply be set to 0.
-        container_for_inv = inv(U[k,k]) 
+        if isempty(rows_with_entry_at_k) continue end
         
-        for j=k+1:n
+        container_for_inv = inv(U[k,k])
+        deleteat!(rows_with_entry_at_k,1) # Drop k from the list of rows to iterate over.
+                
+        for j in rows_with_entry_at_k
+            
+            # The "lost" digits of precision for L[j,k] can simply be set to 0.
+            # as L[j,k] is really an integer.
             Hecke.mul!(L[j,k],U[j,k], container_for_inv)
-            L[j,k].N = parent(L[j,k]).prec_max            # L[j,k] is really an integer.
-        end
-        
-        #zero_subdiagonal_of_column!(U,k)
-        
-        for j=k+1:n
-            if U[j].pos[1] == k
 
-                display(U.rows[j])
-                
-                Hecke.add_scaled_row!(U, k, j, -L[j,k])
-
-                display(U.rows[j])
-                println()
-                
-                #deleteat!(U[j].pos,1)
-                #deleteat!(U[j].values,1)
+            if L[j,k].N < prec(parent(L[j,k]))
+                L[j,k].N = prec(parent(L[j,k]))
             end
             
-            # Update the smallest valuation element.
-            # if U[j].pos[1] == k+1 && float64_valuation(U[j][1]) < min_val
-            #     min_val = float64_valuation(U[j,r])
-            #     min_val_index_mut[1] = j
-            #     min_val_index_mut[2] = k+1
-            # end
-            
-            # for r=k+1:m
-            #     # Compute U[j,r] = U[j,r] - L[j,k]*U[k,r]                
-            #     Hecke.mul!(container_for_product, L[j,k], U[k,r])
-            #     _unsafe_minus!(U[j,r], container_for_product)
+            try
+                if L[j,k] != 0
+                    Hecke.add_scaled_row!(U, k, j, -L[j,k])
+                elseif valuation(L[j,k]) < prec(parent(L[j,k]))
+                    error("Somethings has gone horribly wrong.")
+                end
+                    
+            catch e
+                println(k, "\n")
                 
-            #     # Update the smallest valuation element
-            #     if float64_valuation(U[j,r]) < min_val
-            #         min_val = float64_valuation(U[j,r])
-            #         min_val_index_mut[1] = j
-            #         min_val_index_mut[2] = r
-            #     end
-            # end            
+                valuation_index_pairs = [ (valuation(U[j,k]), j)
+                                          for j=k:n if !iszero(U[j,k])]
+                display(valuation_index_pairs)
+                display(valuation.(matrix(U)))
+                modp.(matrix(U))
+                error(e)
+            end
         end
     end
 
-    Umat = matrix(U)
-
-    display(modp.(matrix(A)))
-    println()
     
-    display(modp.(Umat))
-    println()
-    
-    display(modp.(L))
-    println()
-
-    display(P)
-    println()
-    
-    display(modp.(matrix(A)[P,Pcol] - L*Umat))
-    
-    @assert iszero(Umat[P,Pcol] - L*Umat)
+    # The test is actually quite expensive, but we keep it for now.
+    @assert iszero(matrix(A)[P,Pcol] - L*matrix(U))
 
     return QRPadicSparsePivoted(L,U,P,Pcol)
 end
