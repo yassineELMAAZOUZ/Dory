@@ -375,9 +375,8 @@ function padic_qr(A::Hecke.SMat{padic};
     P= Array(1:n)
     Pcol=Array(1:m)
 
-    # Function to select the row pivot and the list of rows with a non-zero entry at index k.
+    # Function to pivot and return the list of rows with a non-zero entry at index k.
     # in the subdiagonal.
-    # return -1 and an empty array if all the sub-diagonal is zero.
     function pivot_and_select_row_indices(U, Lent, k, piv)
         
         valuation_index_pairs = [ (valuation(U[j, piv]), j) for j=k:n if !iszero(U[j, piv]) ]
