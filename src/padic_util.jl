@@ -396,6 +396,7 @@ function padic_qr(A::Hecke.SMat{padic};
             # Remove k or leading zeros from the list of rows to iterate over.
             # (Leading zeros can be introduced by a swap.)
             filter!(j->(j!=k && !iszero(U[j,piv])), rows_with_entry_at_piv)
+        end
         
         return last.(valuation_index_pairs)
     end
@@ -426,7 +427,9 @@ function padic_qr(A::Hecke.SMat{padic};
             # as L[j,k] is really an integer.
             Hecke.mul!(L[j,k],U[j,piv], container_for_inv)
 
-            if L[j,k].N < prec(parent(L[j,k]))  [j,k].N = prec(parent(L[j,k])) end
+            if L[j,k].N < prec(parent(L[j,k]))
+                [j,k].N = prec(parent(L[j,k]))
+            end
             
             if L[j,k] != 0
                 Hecke.add_scaled_row!(U, k, j, -L[j,k])
