@@ -384,6 +384,7 @@ function padic_qr(A::Hecke.SMat{padic};
         if !isempty(valuation_index_pairs)
 
             row_pivot_index = last(minimum(valuation_index_pairs))
+            rows_with_entry_at_piv = last.(valuation_index_pairs)
             
             if row_pivot_index!=k
                 Hecke.swap_rows!(U,k,row_pivot_index)
@@ -396,9 +397,9 @@ function padic_qr(A::Hecke.SMat{padic};
             # Remove k or leading zeros from the list of rows to iterate over.
             # (Leading zeros can be introduced by a swap.)
             filter!(j->(j!=k && !iszero(U[j,piv])), rows_with_entry_at_piv)
+        else        
+            return last.(valuation_index_pairs)
         end
-        
-        return last.(valuation_index_pairs)
     end
 
     # Initialize the shift index to determine the critial pivot location.
@@ -428,7 +429,7 @@ function padic_qr(A::Hecke.SMat{padic};
             Hecke.mul!(L[j,k],U[j,piv], container_for_inv)
 
             if L[j,k].N < prec(parent(L[j,k]))
-                [j,k].N = prec(parent(L[j,k]))
+                L[j,k].N = prec(parent(L[j,k]))
             end
             
             if L[j,k] != 0
@@ -442,7 +443,6 @@ function padic_qr(A::Hecke.SMat{padic};
         k += 1
     end
 
-    
     # The test is actually quite expensive, but we keep it for now.
     @assert iszero(matrix(A)[P,Pcol] - L*matrix(U))
 
