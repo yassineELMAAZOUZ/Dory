@@ -138,7 +138,7 @@ struct QRPadicPivoted
 end
 
 struct QRPadicSparsePivoted
-    Q::Hecke.Generic.MatElem{padic}
+    Q::Hecke.SMat{padic}
     R::Hecke.SMat{padic}
     p::Array{Int64,1}
     q::Array{Int64,1}
@@ -355,7 +355,8 @@ end
 
 #######################################################################################
 
-# Seriously!?
+### "Seriously!? how is this not implemented?" block.
+
 import Hecke.swap_cols!
 function Hecke.swap_cols!(A::SMat{T}, i::Int, j::Int) where T
   @assert 1 <= i <= ncols(A) && 1 <= j <= ncols(A)
@@ -403,11 +404,42 @@ function Base.findfirst(A::Array{Int64,1}, j::Int64)
     return findfirst(x->(x==j), A)
 end
 
+@doc Markdown.doc"""
+    setindex!(A::SMat{T}, a::T, i::Int64, j::Int64) -> nothing
+Given a sparse matrix $A$, set $A[i,j] = a$.
+"""
+function Base.setindex!(A::SMat{T}, a::T, i::Int64, j::Int64) where {T<:Hecke.RingElem}
+    i < 1 && error("Index must be positive")
+    srow = A[i]
+    
+    p = findfirst(isequal(j), srow.pos)
+    if p === nothing
+        irange = searchsorted(srow.pos,j)
+        splice!(srow.pos, irange, [j])
+        splice!(srow.values, irange, [a])
+        A.nnz += 1
+    else
+        srow.values[p] = a
+    end
+    A[i] = srow
+    return
+end
+
+function sparse_identity(R::T, n::Int64) where T<:Hecke.Ring
+    II = Hecke.sparse_matrix(R)
+    for i=1:n
+        srow = sparse_row( R, Array{Int64,1}([i]), Array{padic,1}([R(1)]) )
+        push!(II, srow)
+    end
+    return II
+end
+### End block of misery.
 
 # The index of the diagonal point is (k,k)
-function swap_prefix_of_column!(L, k::Int64, i::Int64)
-    for r=1:(k-1)
-        L[r,k], L[r,i] = L[r,i], L[r,k]
+function swap_prefix_of_column!(L, diagonal_index::Int64, i::Int64)
+    k = diagonal_index
+    for r=1:k-1
+        L[r,k],L[r,i] = L[r,i], L[r,k]
     end
     return
 end
@@ -415,37 +447,16 @@ end
 
 function padic_qr(A::Hecke.SMat{padic};
                   col_pivot=Val(false) :: Union{Val{true},Val{false}})
-
-    if col_pivot==Val(true)
-        #error("Sparse elimination with column pivoting is not implemented.")
-        # NOTES:
-        #=
-          Hecke.swap_cols! is a method.
-          We just need to keep track of the pivot logic. This is a little tricky.
-        =#
-    end
     
     # Set constants
     Qp = A.base_ring
     n = size(A,1)::Int64
     m = size(A,2)::Int64
-    basezero = zero(Qp)
     
-    #L= identity_matrix(Qp,n)
-    #Lent = L.entries::Array{padic,2}
-
     # We store the ***transpose*** of L as a sparse matrix, and flip everything at the end.
     # Allocate the rows of Ltrans ahead of time.
-    Ltrans = Hecke.sparse_matrix(Qp)
-    for i=1:m
-        srow = sparse_row( Qp, Array{Int64,1}(), Array{padic,1}() )
-        push!(Ltrans, srow)
-    end
-
-    # TEMPORARY!!!!
-    display("replacing by matrix for debugging")
-    Ltrans = identity_matrix(Qp,n)
-
+    Ltrans = sparse_identity(Qp, n)
+    
     U= deepcopy(A)    
     P= Array(1:n)
     Pcol=Array(1:m)
@@ -488,6 +499,7 @@ function padic_qr(A::Hecke.SMat{padic};
                 P[k],P[row_pivot_index] = P[row_pivot_index],P[k]
 
                 # swap columns corresponding to the row operations already done.
+                # Do not swap the diagonal elements.
                 swap_prefix_of_column!(Ltrans, k, row_pivot_index)
             end
 
@@ -497,7 +509,7 @@ function padic_qr(A::Hecke.SMat{padic};
         else        
             return last.(valuation_index_pairs)
         end
-    end
+    end ### END PIVOT FUNCTION
 
     # Initialize the shift index to determine the critial pivot location.
     shift=0
@@ -523,7 +535,7 @@ function padic_qr(A::Hecke.SMat{padic};
                         
             # The "lost" digits of precision for L[j,k] can simply be set to 0.
             # as L[j,k] is really an integer.
-            Hecke.mul!(Ltrans[k,j],U[j,piv], container_for_inv)
+            Ltrans[k,j] = U[j,piv]*container_for_inv
 
             if Ltrans[k,j].N < prec(Qp)
                 Ltrans[k,j].N = prec(Qp)
@@ -531,17 +543,19 @@ function padic_qr(A::Hecke.SMat{padic};
             
             if Ltrans[k,j] != 0
                 Hecke.add_scaled_row!(U, k, j, -Ltrans[k,j])
-            elseif valuation(Ltrans[k,j]) < prec(parent(Ltrans[k,j]))
+            elseif valuation(Ltrans[k,j]) < prec(Qp)
                 error("Problem related to Hecke's `add_scaled_row` function encountered.")
             end
         end
 
         #Update loop counter.
-        k += 1
+        k += 1        
     end
 
+    
+
     # The test is actually quite expensive, but we keep it for now.
-    @time @assert iszero( matrix(A)[P,Pcol] - transpose(Ltrans)*matrix(U) )
+    @time @assert iszero( matrix(A)[P,Pcol] - transpose(matrix(Ltrans))*matrix(U) )
 
     return QRPadicSparsePivoted( transpose(Ltrans),U,P,Pcol)
 end
@@ -650,8 +664,10 @@ function nullspace(A::Hecke.SMat{padic})
     Pinv = inverse_permutation(F.p)   
     
     Q = F.Q
-    inv_unit_lower_triangular!(Q)
-    Qinvt = transpose(Q)[Pinv,:]
+    badQ = matrix(Q) # The "matrix" call makes things dense. This is not ideal.
+    inv_unit_lower_triangular!(badQ)   # It is probably a good idea to have a specialized QR method
+                                       # that computes the inverse of Q directly, instead of Q.
+    Qinvt = transpose(badQ)[Pinv,:]
     
     return length(col_list) + max(0,n-m), hcat(Qinvt[:, col_list], Qinvt[:,(m+1):n])
 end
