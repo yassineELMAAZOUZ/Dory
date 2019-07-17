@@ -4,6 +4,8 @@
   Finds the largest, in absolute value, entry of $A$. 
   Note that `abs` must be defined for the entry type.
 """
+
+import Base.maximum
 function maximum(::typeof(abs), A::SMat{T} where T)
     if length(A.rows) == 0
         return zero(FlintZZ)

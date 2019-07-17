@@ -355,12 +355,64 @@ end
 
 #######################################################################################
 
+# Seriously!?
+import Hecke.swap_cols!
+function Hecke.swap_cols!(A::SMat{T}, i::Int, j::Int) where T
+  @assert 1 <= i <= ncols(A) && 1 <= j <= ncols(A)
+
+  if i == j
+    return A
+  end
+
+  for r in A.rows
+    if i in r.pos
+      i_i = findfirst(r.pos, i)
+      val_i = r.values[i_i]
+      if j in r.pos
+        i_j = findfirst(r.pos, j)
+        val_j = r.values[i_j]
+
+        r.values[i_i], r.values[i_j] = r.values[i_j], r.values[i_i]
+      else
+        t = r.values[i_i]
+        deleteat!(r.pos, i_i)
+        deleteat!(r.values, i_i)
+        k = searchsortedfirst(r.pos, j)
+        insert!(r.pos, k, j)
+        insert!(r.values, k, t)
+      end
+    else
+      if j in r.pos
+        i_j = findfirst(r.pos, j)
+        val_j = r.values[i_j]
+
+        t = r.values[i_j]
+        deleteat!(r.pos, i_j)
+        deleteat!(r.values, i_j)
+        k = searchsortedfirst(r.pos, i)
+        insert!(r.pos, k, i)
+        insert!(r.values, k, t)
+      end
+    end
+  end
+  return A
+end
+
+import Base.findfirst
+function Base.findfirst(A::Array{Int64,1}, j::Int64)
+    return findfirst(x->(x==j), A)
+end
 
 function padic_qr(A::Hecke.SMat{padic};
                   col_pivot=Val(false) :: Union{Val{true},Val{false}})
 
     if col_pivot==Val(true)
-        error("Sparse elimination with column pivoting is not implemented.")
+        #error("Sparse elimination with column pivoting is not implemented.")
+        # NOTES:
+        #=
+          Hecke.swap_cols! is a method.
+          We just need to keep track of the pivot logic. This is a little tricky.
+        =#
     end
     
     # Set constants
@@ -378,9 +430,31 @@ function padic_qr(A::Hecke.SMat{padic};
     # Function to pivot and return the list of rows with a non-zero entry at index k.
     # in the subdiagonal.
     function pivot_and_select_row_indices(U, Lent, k, piv)
-        
-        valuation_index_pairs = [ (valuation(U[j, piv]), j) for j=k:n if !iszero(U[j, piv]) ]
-                 
+
+        # Scan through the matrix to check if a column swap is needed.
+        if col_pivot==Val(true)
+            minn = Inf
+            mindex = piv
+            for j=k:n
+                srow = U[j]
+                if isempty(srow) break end
+                
+                rowmin, rowmindex = findmin( valuation.(srow.values) )
+                if rowmin < minn
+                    minn = rowmin
+                    mindex = srow.pos[rowmindex]
+                end
+            end
+
+            if mindex != piv
+                Hecke.swap_cols!(U,piv,mindex)
+                Pcol[piv], Pcol[mindex] = Pcol[mindex], Pcol[piv]
+            end
+        end
+
+        # Scan through the matrix to check if a rowswap is needed.
+        valuation_index_pairs = [ (valuation(U[j, piv]), j) for j=k:n if !iszero(U[j, piv]) ]        
+            
         if !isempty(valuation_index_pairs)
 
             row_pivot_index = last(minimum(valuation_index_pairs))
@@ -423,7 +497,7 @@ function padic_qr(A::Hecke.SMat{padic};
         container_for_inv = inv(U[k,piv])
         
         for j in rows_with_entry_at_piv
-            
+                        
             # The "lost" digits of precision for L[j,k] can simply be set to 0.
             # as L[j,k] is really an integer.
             Hecke.mul!(L[j,k],U[j,piv], container_for_inv)
@@ -444,7 +518,7 @@ function padic_qr(A::Hecke.SMat{padic};
     end
 
     # The test is actually quite expensive, but we keep it for now.
-    @assert iszero(matrix(A)[P,Pcol] - L*matrix(U))
+    @time @assert iszero( matrix(A)[P,Pcol] - L*matrix(U) )
 
     return QRPadicSparsePivoted(L,U,P,Pcol)
 end
@@ -523,6 +597,42 @@ function nullspace(A::Hecke.MatElem{padic})
     
     return length(col_list) + max(0,n-m), hcat(Qinvt[:, col_list], Qinvt[:,(m+1):n])
 end
+
+function nullspace(A::Hecke.SMat{padic})
+
+    m = nrows(A)
+    n = ncols(A)
+    F = padic_qr(transpose(A), col_pivot=Val(true))
+
+    # Sparse elimination sorts zero singular values to the bottom.
+    # However, without column pivoting there is potential precision loss.
+
+    
+    # This function is really bad from a precision analysis standpoint. It isn't clear
+    # how to deal with the insane precision gains we get from sparse elimination.
+    function bad_iszero(srow)
+        if iszero(srow)
+            return true
+        end
+        return minimum(valuation.(srow.values)) >= precision(A.base_ring)
+    end
+    
+    col_list = Array{Int64,1}()
+    for i=1:min(n,m)
+        if bad_iszero(F.R[i])
+            push!(col_list, i)
+        end
+    end
+
+    Pinv = inverse_permutation(F.p)   
+    
+    Q = F.Q
+    inv_unit_lower_triangular!(Q)
+    Qinvt = transpose(Q)[Pinv,:]
+    
+    return length(col_list) + max(0,n-m), hcat(Qinvt[:, col_list], Qinvt[:,(m+1):n])
+end
+
 
 # stable version of inverse for p-adic matrices
 import Hecke.inv
