@@ -403,6 +403,16 @@ function Base.findfirst(A::Array{Int64,1}, j::Int64)
     return findfirst(x->(x==j), A)
 end
 
+
+# The index of the diagonal point is (k,k)
+function swap_prefix_of_column!(L, k::Int64, i::Int64)
+    for r=1:(k-1)
+        L[r,k], L[r,i] = L[r,i], L[r,k]
+    end
+    return
+end
+
+
 function padic_qr(A::Hecke.SMat{padic};
                   col_pivot=Val(false) :: Union{Val{true},Val{false}})
 
@@ -416,20 +426,33 @@ function padic_qr(A::Hecke.SMat{padic};
     end
     
     # Set constants
+    Qp = A.base_ring
     n = size(A,1)::Int64
     m = size(A,2)::Int64
-    basezero = zero(A.base_ring)
+    basezero = zero(Qp)
     
-    L= identity_matrix(A.base_ring,n)
-    Lent = L.entries::Array{padic,2}
-    U= deepcopy(A)
-    
+    #L= identity_matrix(Qp,n)
+    #Lent = L.entries::Array{padic,2}
+
+    # We store the ***transpose*** of L as a sparse matrix, and flip everything at the end.
+    # Allocate the rows of Ltrans ahead of time.
+    Ltrans = Hecke.sparse_matrix(Qp)
+    for i=1:m
+        srow = sparse_row( Qp, Array{Int64,1}(), Array{padic,1}() )
+        push!(Ltrans, srow)
+    end
+
+    # TEMPORARY!!!!
+    display("replacing by matrix for debugging")
+    Ltrans = identity_matrix(Qp,n)
+
+    U= deepcopy(A)    
     P= Array(1:n)
     Pcol=Array(1:m)
 
     # Function to pivot and return the list of rows with a non-zero entry at index k.
     # in the subdiagonal.
-    function pivot_and_select_row_indices(U, Lent, k, piv)
+    function pivot_and_select_row_indices(U, Ltrans, k, piv)
 
         # Scan through the matrix to check if a column swap is needed.
         if col_pivot==Val(true)
@@ -465,7 +488,7 @@ function padic_qr(A::Hecke.SMat{padic};
                 P[k],P[row_pivot_index] = P[row_pivot_index],P[k]
 
                 # swap columns corresponding to the row operations already done.
-                swap_prefix_of_row!(Lent, k, row_pivot_index)
+                swap_prefix_of_column!(Ltrans, k, row_pivot_index)
             end
 
             # Remove k or leading zeros from the list of rows to iterate over.
@@ -486,7 +509,7 @@ function padic_qr(A::Hecke.SMat{padic};
         
         # set the pivot column and determine the rows to apply elimination.
         piv = k + shift
-        rows_with_entry_at_piv = pivot_and_select_row_indices(U, Lent, k, piv )
+        rows_with_entry_at_piv = pivot_and_select_row_indices(U, Ltrans, k, piv )
 
         # If everything is zero, shift the algorithm to operate on the
         # right rectangular submatrix window.
@@ -500,15 +523,15 @@ function padic_qr(A::Hecke.SMat{padic};
                         
             # The "lost" digits of precision for L[j,k] can simply be set to 0.
             # as L[j,k] is really an integer.
-            Hecke.mul!(L[j,k],U[j,piv], container_for_inv)
+            Hecke.mul!(Ltrans[k,j],U[j,piv], container_for_inv)
 
-            if L[j,k].N < prec(parent(L[j,k]))
-                L[j,k].N = prec(parent(L[j,k]))
+            if Ltrans[k,j].N < prec(Qp)
+                Ltrans[k,j].N = prec(Qp)
             end
             
-            if L[j,k] != 0
-                Hecke.add_scaled_row!(U, k, j, -L[j,k])
-            elseif valuation(L[j,k]) < prec(parent(L[j,k]))
+            if Ltrans[k,j] != 0
+                Hecke.add_scaled_row!(U, k, j, -Ltrans[k,j])
+            elseif valuation(Ltrans[k,j]) < prec(parent(Ltrans[k,j]))
                 error("Problem related to Hecke's `add_scaled_row` function encountered.")
             end
         end
@@ -518,9 +541,9 @@ function padic_qr(A::Hecke.SMat{padic};
     end
 
     # The test is actually quite expensive, but we keep it for now.
-    @time @assert iszero( matrix(A)[P,Pcol] - L*matrix(U) )
+    @time @assert iszero( matrix(A)[P,Pcol] - transpose(Ltrans)*matrix(U) )
 
-    return QRPadicSparsePivoted(L,U,P,Pcol)
+    return QRPadicSparsePivoted( transpose(Ltrans),U,P,Pcol)
 end
 
 
