@@ -664,6 +664,9 @@ function nullspace(A::Hecke.SMat{padic})
     Pinv = inverse_permutation(F.p)   
     
     Q = F.Q
+    println("Sparsity of Q-factor: ", sparsity(Q))
+    println()
+    
     badQ = matrix(Q) # The "matrix" call makes things dense. This is not ideal.
     inv_unit_lower_triangular!(badQ)   # It is probably a good idea to have a specialized QR method
                                        # that computes the inverse of Q directly, instead of Q.
