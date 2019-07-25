@@ -561,6 +561,131 @@ function padic_qr(A::Hecke.SMat{padic};
 end
 
 
+#######################################################################################
+
+# Hessenberg QR-algorithm
+
+#######################################################################################
+
+
+## Specialized algorithm optimized for QR-iterations
+function padic_hessenberg_qr!(A::Hecke.Generic.MatElem{padic};
+                  col_pivot=Val(false) :: Union{Val{true},Val{false}})
+
+    # testA = deepcopy(A)
+    
+    # Set constants
+    n = size(A,1)::Int64
+    m = size(A,2)::Int64
+    basezero = zero(A.base_ring)
+
+    @assert n==m
+    
+    L= identity_matrix(A.base_ring,n)
+    Lent = L.entries::Array{padic,2}  
+    Umat= A
+    U = Umat.entries
+    
+    P= Array(1:n)
+    Pcol=Array(1:m)
+
+    # We cache the maximum value of the matrix at each step, so we save an iteration pass
+    # through the matrix.
+    val_list = float64_valuation.(U)
+    min_val, min_val_index = findmin( val_list );
+    
+    # Allocate specific working memory for multiplications.
+    container_for_swap    = padic(U[1,1].N)
+    container_for_product = padic(U[1,1].N)
+    container_for_div     = padic(U[1,1].N)
+    
+    # Allocate a 2-element array to hold the index of the maximum valuation.
+    min_val_index_mut = [x for x in min_val_index.I]
+
+        
+    for k=1:(n-1::Int64)
+
+        if col_pivot==Val(true)
+            col_index=min_val_index_mut[2]
+            if col_index!=k
+                # interchange columns m and k in U
+                for r=1:n
+                    U[r,k], U[r,col_index] = U[r,col_index], U[r,k]
+                end
+                
+                # interchange entries m and k in Pcol
+                Pcol[k], Pcol[col_index] = Pcol[col_index], Pcol[k]
+            end
+        end
+        
+        val_list = float64_valuation.(U[k:k+1,k])
+        minn, row_pivot_index = findmin( val_list );
+        if minn==Inf continue end
+
+        row_pivot_index=row_pivot_index+k-1;
+        if row_pivot_index!=k
+
+            # interchange rows `row_pivot_index` and `k` in U
+            for r=1:m
+                U[k,r], U[row_pivot_index,r] = U[row_pivot_index,r], U[k,r]
+            end               
+            
+            # interchange entries `row_pivot_index` and k in P
+            P[k],P[row_pivot_index] = P[row_pivot_index],P[k]
+
+            # swap columns corresponding to the row operations already done.
+            swap_prefix_of_row!(Lent, k, row_pivot_index)
+        end
+
+        # Reset min_valuation for selecting new pivot.
+        min_val = Inf
+
+        # Note to self: with Julia, the optimal thing to do is split up the row operations
+        # and write a for loop.
+        # The entries left of the k-th column are zero, so skip these.
+        # Cache the values of L[j,k] first.
+        #
+        if iszero(U[k,k])
+            # If col_pivot == true, then we don't need to perform further column swaps
+            # in this case, since the element of largest valuation in the lower-right
+            # block is zero. In fact, no further operations need to be performed.
+            continue
+        end 
+
+        # The use of the inversion command preserves relative precision. By row-pivoting,
+        # the extra powers of p cancel to give the correct leading term.
+        # the "lost" digits of precision for L[j,k] can simply be set to 0.
+        container_for_inv = inv(U[k,k]) 
+        
+        # for j=k+1:n
+        Hecke.mul!(L[k+1,k],U[k+1,k], container_for_inv)
+        L[k+1,k].N = parent(L[k+1,k]).prec_max            # L[j,k] is really an integer.
+        # end
+
+        # Perform the row operation.
+        zero!(U[k+1,k])        
+        for r=k+1:m
+            # for j=k+1:n
+            # Compute U[j,r] = U[j,r] - L[j,k]*U[k,r]                
+            Hecke.mul!(container_for_product, L[k+1,k], U[k,r])
+            _unsafe_minus!(U[k+1,r], container_for_product)
+                
+            # Update the smallest valuation element
+            if float64_valuation(U[k+1,r]) < min_val
+                min_val = float64_valuation(U[k+1,r])
+                min_val_index_mut[1] = k+1
+                min_val_index_mut[2] = r
+            end
+            # end
+        end
+    end
+
+    # @assert iszero(testA[P,Pcol] - L*Umat)
+    
+    return QRPadicPivoted(L,Umat,P,Pcol)
+end
+
+
 ########################################################################################
 
 # IMPORTANT!
@@ -798,6 +923,9 @@ function _svd_rectangular_solve(A::Hecke.MatElem{padic}, b_input::Hecke.MatElem{
 
     m = nrows(A)
     n = ncols(A)
+    nb= ncols(b_input)
+    container = A.base_ring()
+    
     if nrows(b_input) != m
         error("`A` and `b` must have the same number of rows.")
     end
@@ -813,7 +941,10 @@ function _svd_rectangular_solve(A::Hecke.MatElem{padic}, b_input::Hecke.MatElem{
     # forward substitution, all diag entries are scaled to 1
     for i in 1:m
         for j in 1:(i-1)
-            b[i,:] = b[i,:] - b[j,:]* F.U[i,j]
+            for r in 1:nb
+                Hecke.mul!(container, -b[j,r], F.U[i,j]) 
+                Hecke.add!(b[i,r], b[i,r], container)
+            end
         end
     end
 
@@ -826,11 +957,7 @@ function _svd_rectangular_solve(A::Hecke.MatElem{padic}, b_input::Hecke.MatElem{
                     println("--- Error data: ---")
                     println("bad entry at ", i," ",j)
                     println("entries: ", b[i,j])
-                    # println()
-                    # println(b)
-                    # println()
-                    # println(A)
-                    error("Line 533: The system is inconsistent.")
+                    error("Line 835: The system is inconsistent.")
                 end
             end
         end
@@ -842,16 +969,25 @@ function _svd_rectangular_solve(A::Hecke.MatElem{padic}, b_input::Hecke.MatElem{
         if !iszero(b[i,:]) && iszero(F.S[i,i])
             println()
             println("--- Error data: ---")
-            error("The system is inconsistent: singular value: ", i," is zero, while `b[i,:]` is nonzero.")
+            error("The system is inconsistent: singular value: ", i,
+                  " is zero, while `b[i,:]` is nonzero.")
+            
         elseif !iszero(F.S[i,i])
-            b[i,:] *= inv(F.S[i,i])
+            container = inv(F.S[i,i])
+            for r in 1:nb
+                Hecke.mul!(b[i,r], b[i,r], container)
+            end
         end
     end
 
     # backward substitution
     for i in n:-1:1
         for j in (i+1):n
-            b[i,:] = b[i,:] - b[j,:]*F.Vt[i,j]
+            # compute b[i,:] = b[i,:] - b[j,:]*F.Vt[i,j]
+            for r in 1:nb
+                Hecke.mul!(container, -b[j,r], F.Vt[i,j]) 
+                Hecke.add!(b[i,r], b[i,r], container)
+            end
         end
     end
 
@@ -1172,8 +1308,6 @@ end
     Computes the block schur form of a padic matrix A, where the
     blocks correspond to the different eigenvalues of A modulo p.
 
-    NOTE: Presently, block_shur_form does not also return the 
-    change of basis matrix.
 """
 function block_schur_form(A::Hecke.Generic.Mat{T} where T <: padic)
 
@@ -1186,24 +1320,53 @@ function block_schur_form(A::Hecke.Generic.Mat{T} where T <: padic)
     chiAp = charpoly(Amp)
 
     B, V = hessenberg(A)
+    container = deepcopy(V)
     id= identity_matrix(Qp, size(B,1))
     
     for (rt,m) in roots_with_multiplicities(chiAp)
-        
-        lambdaI = lift(rt)*id
 
+        rtqp = Qp(lift(rt))
+        # lambdaI = lift(rt)*id
+        
         # Regarding convergence. It seems like it needs a little extra time to
         # sort the terms via permutation.
         for i in 1:N*m
-            F = padic_qr(B - lambdaI)
+
+            # create B- lambdaI inplace
+            for i=1:ncols(B)
+                Hecke.add!(B[i,i], B[i,i], -rtqp)
+            end
+
+            # @time F = padic_qr(B)
+            @time F = padic_hessenberg_qr!(B)
 
             # Note about Julia's syntax. A[:,F.p] = A*inv(P), for a permutation P.
-            B = F.R[:,F.p] * F.Q + lambdaI
-            V = inv_unit_lower_triangular(F.Q)*V[F.p,:]
+
+            # Update B = F.R[:,F.p] * F.Q + lambdaI inplace
+            stupid_copy!(container, F.R[:, F.p]) 
+            Hecke.mul!(B, container, F.Q)   
+            for i=1:ncols(B)
+                Hecke.add!(B[i,i], B[i,i], rtqp)
+            end
+
+            # Update V inplace
+            inv_unit_lower_triangular!(F.Q)
+            stupid_copy!(container, V[F.p, :])
+            Hecke.mul!(V, F.Q , container)
         end        
     end
     
     return B,V
+end
+
+function stupid_copy!(A,B)
+    zero = A.base_ring(0)
+    for j=1:ncols(A)
+        for i=1:nrows(A)
+            Hecke.add!(A[i,j], B[i,j], zero)
+        end
+    end
+    return
 end
 
 function roots_with_multiplicities(f)
