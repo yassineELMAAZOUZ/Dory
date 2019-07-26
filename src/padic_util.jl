@@ -657,16 +657,12 @@ function padic_hessenberg_qr!(A::Hecke.Generic.MatElem{padic};
         # the "lost" digits of precision for L[j,k] can simply be set to 0.
         container_for_inv = inv(U[k,k]) 
         
-        # for j=k+1:n
         Hecke.mul!(L[k+1,k],U[k+1,k], container_for_inv)
         L[k+1,k].N = parent(L[k+1,k]).prec_max            # L[j,k] is really an integer.
-        # end
 
-        # Perform the row operation.
+        # Perform the row operation.   U[j,:] = U[j,:] - L[j,k]*U[k,:]                
         zero!(U[k+1,k])        
         for r=k+1:m
-            # for j=k+1:n
-            # Compute U[j,r] = U[j,r] - L[j,k]*U[k,r]                
             Hecke.mul!(container_for_product, L[k+1,k], U[k,r])
             _unsafe_minus!(U[k+1,r], container_for_product)
                 
@@ -676,7 +672,6 @@ function padic_hessenberg_qr!(A::Hecke.Generic.MatElem{padic};
                 min_val_index_mut[1] = k+1
                 min_val_index_mut[2] = r
             end
-            # end
         end
     end
 
@@ -1332,6 +1327,8 @@ function block_schur_form(A::Hecke.Generic.Mat{T} where T <: padic)
         # sort the terms via permutation.
         for i in 1:N*m
 
+            # display((N, m, i))
+            
             # create B- lambdaI inplace
             for i=1:ncols(B)
                 Hecke.add!(B[i,i], B[i,i], -rtqp)
