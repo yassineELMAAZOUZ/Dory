@@ -1335,7 +1335,7 @@ function block_schur_form(A::Hecke.Generic.Mat{T} where T <: padic)
             end
 
             # @time F = padic_qr(B)
-            @time F = padic_hessenberg_qr!(B)
+            F = padic_hessenberg_qr!(B)
 
             # Note about Julia's syntax. A[:,F.p] = A*inv(P), for a permutation P.
 
