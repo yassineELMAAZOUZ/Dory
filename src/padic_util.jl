@@ -515,7 +515,7 @@ function padic_qr(A::Hecke.SMat{padic};
     shift=0
     k=1
     
-    while k <= (min(n,m)::Int64) && k+shift <= m::Int64
+    @time while k <= (min(n,m)::Int64) && k+shift <= m::Int64
 
         ### Pivot logic ###
         
