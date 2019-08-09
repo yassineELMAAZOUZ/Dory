@@ -22,6 +22,9 @@ function +(x::padic) return x end
 function /(x::padic,y::padic) return x//y end
 
 # Access to the precision fields.
+"""
+
+"""
 function precision(Qp::FlintPadicField) return Qp.prec_max end
 function prec(Qp::FlintPadicField) return Qp.prec_max end
 
@@ -144,7 +147,25 @@ struct QRPadicSparsePivoted
     q::Array{Int64,1}
 end
 
+@doc Markdown.doc"""
+    padic_qr(A :: Hecke.Generic.MatElem{padic} ; col_pivot :: Union{Val{true},Val{false}}) --> F
 
+The return type of `F` is a QRPadicPivoted, with fields `F.Q, F.R, F.p, F.q` described below.
+                 
+Compute the p-adic QR factorization of A. More precisely, compute matrices `Q`,`R`, and an arrays `p`, `q` such that 
+
+    A[F.p,F.q] = Q*R
+
+If col_pivot=Val(false), then F.q = [1,2,...,size(A,2)].
+
+#-------------------
+
+INPUTS:
+A         -- a matrix over Qp, A::Hecke.Generic.MatElem{padic}
+col_pivot -- a type, either Val(true) or Val(false), indicating whether column permutations
+             should be used to move p-adically large entries to the pivot position.
+
+"""
 function padic_qr(A::Hecke.Generic.MatElem{padic};
                   col_pivot=Val(false) :: Union{Val{true},Val{false}})
 
@@ -264,8 +285,8 @@ function padic_qr(A::Hecke.Generic.MatElem{padic};
     return QRPadicPivoted(L,Umat,P,Pcol)
 end
 
-# The index of the diagonal point is (k,k)
 function swap_prefix_of_row!(Lent, k::Int64, i::Int64)
+    # The index of the diagonal point is (k,k)
     for r=1:(k-1)
         container_for_swap = Lent[k,r]
         Lent[k,r] = Lent[i,r] 
@@ -283,72 +304,6 @@ function _unsafe_minus!(x::padic, y::padic)
     return
 end
 
-# Performs multiplication and stores the result in a preexisting container
-# @inline function _unsafe_mult!(container::padic, x::padic, y::padic)
-#    container.N = min(x.N + y.v, y.N + x.v)
-#    ccall((:padic_mul, :libflint), Nothing,
-#          (Ref{padic}, Ref{padic}, Ref{padic}, Ref{FlintPadicField}),
-#                container, x, y, parent(x))
-#    return
-# end
-
-# Assumes that |a| ≤ |b| ≠ 0. Computes a padic integer x such that |a - xb| ≤ p^N, where N is the ring precision.
-# This prevents the division of small numbers by powers of p.
-## Somehow, this is slower than the other function...
-#=
-function _unsafe_precision_stable_division!(container::padic, a::padic, b::padic)
-
-    if iszero(a) return a end
-
-    Hecke.mul!(container, a, inv(b))
-    container.v = container.v - container.v
-    container.N = container.N #This is wrong! fix after seminar.
-    
-    return
-end
-=#
-
-# Try again, hope for more speed!
-# function _unsafe_precision_stable_division!(container::padic, a::padic, b::padic)
-
-#     if iszero(a) return a end
-#     # Because the division is guarenteed to be stable, manually set the precsion.
-#     container.N = min(a.N, b.N)
-#     ctx = container.parent
-
-#     ccall((:padic_div, :libflint), Cint,
-#           (Ref{padic}, Ref{padic}, Ref{padic}, Ref{FlintPadicField}),
-#           container, a, b, ctx)    
-#     return
-# end
-
-
-# function divexact(a::padic, b::padic)
-#    iszero(b) && throw(DivideError())
-#    check_parent(a, b)
-#    ctx = parent(a)
-#    z = padic(min(a.N - b.v, b.N - 2*b.v + a.v))
-#    z.parent = ctx
-#    ccall((:padic_div, :libflint), Cint,
-#          (Ref{padic}, Ref{padic}, Ref{padic}, Ref{FlintPadicField}),
-#                z, a, b, ctx)
-#    return z
-# end
-
-
-# TODO: investigate the precision.
-#
-# function _precision_stable_division(a::padic, b::padic)
-#     Qp = parent(b)
-#     #if iszero(b) error("DivideError: integer division error") end
-#     if iszero(a) return zero(Qp) end
-    
-#     x = Qp(a.u) * inv(Qp(b.u))
-#     x.v = a.v - b.v
-#     # x.N = something...
-#     return x
-# end
-
 #######################################################################################
 
 # Sparse QR-algorithm
@@ -358,6 +313,11 @@ end
 ### "Seriously!? how is this not implemented?" block.
 
 import Hecke.swap_cols!
+@doc Markdown.doc"""
+   Hecke.swap_cols!(A::SMat{T},i::Int,j::Int) -> nothing
+
+The correct implementation of Hecke.swap_cols! for sparse matrices.
+"""
 function Hecke.swap_cols!(A::SMat{T}, i::Int, j::Int) where T
   @assert 1 <= i <= ncols(A) && 1 <= j <= ncols(A)
 
@@ -425,6 +385,19 @@ function Base.setindex!(A::SMat{T}, a::T, i::Int64, j::Int64) where {T<:Hecke.Ri
     return
 end
 
+@doc Markdown.doc"""
+    sparse_identity(R::T, n::Int64) where T<:Hecke.Ring --> Id
+
+Given a ring `R`, and an integer `n`, return the `n x n`-identity matrix over the ring R.
+
+#-------------------
+
+INPUTS:
+R         -- type ::Hecke.Ring
+col_pivot -- a type, either Val(true) or Val(false), indicating whether column permutations
+             should be used to move p-adically large entries to the pivot position.
+
+"""
 function sparse_identity(R::T, n::Int64) where T<:Hecke.Ring
     II = Hecke.sparse_matrix(R)
     for i=1:n
@@ -445,6 +418,25 @@ function swap_prefix_of_column!(L, diagonal_index::Int64, i::Int64)
 end
 
 
+"""
+    padic_qr(A; col_pivot) --> F
+
+The return type of `F` is a QRPadicPivoted, with fields `F.Q, F.R, F.p, F.q` described below.
+                 
+Compute the p-adic QR factorization of A. More precisely, compute matrices `Q`,`R`, and an arrays `p`, `q` such that 
+
+    A[F.p,F.q] = Q*R
+
+If col_pivot=Val(false), then F.q = [1,2,...,size(A,2)].
+
+#-------------------
+
+INPUTS:
+A         -- a matrix over Qp, A::Hecke.Generic.MatElem{padic}
+col_pivot -- a type, either Val(true) or Val(false), indicating whether column permutations
+             should be used to move p-adically large entries to the pivot position.
+
+"""
 function padic_qr(A::Hecke.SMat{padic};
                   col_pivot=Val(false) :: Union{Val{true},Val{false}})
     
@@ -574,6 +566,29 @@ struct SVDPadic
 end
 
 # A padic analogue for svd
+@doc Markdown.doc"""
+    svd(A :: Hecke.Generic.Matelem{padic}) -> SVDPadic
+
+  Compute the singular value decomposition (SVD) of A and return an SVDPadic object.
+
+  A pAdic singular value decomposition is a factorization of the form
+
+  A = U * S * Vt
+
+  where U,Vt are matrices in GL_n(Zp). For efficiency reasons, we give a factorization
+  as well as two arrays `F.p` and `F.q` such that
+
+  A[p, q] = U*S*Vt
+
+  where `U` is lower triangular with ones on the diagonal and `Vt` is upper triangular
+  with ones on the diagonal. The singular values in S are sorted in descending order of padic 
+  absoute value.
+
+  The return types are
+     U, S, Vt :: Hecke.Generic.MatElem{padic}
+     p,q      :: Array{Int64,1}
+
+"""
 function svd(A::Hecke.Generic.MatElem{padic})
 
     F = padic_qr(A, col_pivot=Val(true))
@@ -591,6 +606,11 @@ function svd(A::Hecke.Generic.MatElem{padic})
 end
 
 # stable version of rank for padic matrices.
+@doc Markdown.doc"""
+    rank(A::Hecke.Generic.MatElem{padic})
+
+  Compute the rank of a padic matrix by counting how many singular values satisfy `iszero(a)`.
+"""
 function rank(A::Hecke.MatElem{padic})
     n = nrows(A)
     m = ncols(A)
@@ -606,6 +626,11 @@ function rank(A::Hecke.MatElem{padic})
 end
 
 # Returns the p-adic singular values of a matrix
+@doc Markdown.doc"""
+    singular_values(A::Hecke.MatElem{padic}) -> Array{padic, 1}
+
+Returns the list of diagonal elements in the singular value decomposition of the matrix `A`.
+"""
 function singular_values(A::Hecke.MatElem{padic})
     F = padic_qr(A,col_pivot=Val(true))
     return [ F.R[i,i] for i=1:minimum(size(A)) ]
@@ -613,6 +638,15 @@ end
 
 # stable version of nullspace for padic matrices.
 import Hecke.nullspace
+@doc Markdown.doc"""
+    nullspace(A::Hecke.MatElem{padic}) -> (nu, N)
+
+Computes the nullspace of a padic matrix `A`. The dimension of the nullspace is dependent
+on the number of singular values of `A` for which `iszero(a)` is true.
+
+nu -- An Int64, which is the dimension of the nullspace.
+N  -- A matrix whose columns generate the nullspace of A. Type ::Hecke.MatElem{padic}. 
+"""
 function nullspace(A::Hecke.MatElem{padic})
 
     m = nrows(A)
@@ -678,6 +712,12 @@ end
 
 # stable version of inverse for p-adic matrices
 import Hecke.inv
+"""
+    inv( A::Hecke.MatElem{padic} ) -> Hecke.MatElem{padic}
+
+Matrix inverse. Computes matrix `B` such that A*B = I, where I is the identity matrix.
+Computed by solving the left-division N = M \ I.
+"""
 function inv(A::Hecke.MatElem{padic})
     if size(A,1) != size(A,2)
         error("Matrix must be square.")
@@ -711,6 +751,11 @@ function inv_unit_lower_triangular!(L::Hecke.Generic.MatElem{T} where T)
     return
 end
 
+"""
+    inv_unit_lower_triangular( A::Hecke.MatElem{padic} ) -> Hecke.MatElem{padic}
+
+Matrix inverse, specialized to invert a lower triangular matrix with ones on the diagonal.
+"""
 function inv_unit_lower_triangular(L)
     L2 = deepcopy(L)
     inv_unit_lower_triangular!(L2)
