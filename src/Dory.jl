@@ -22,7 +22,10 @@ import Hecke: Generic.Mat, Generic.MatElem, nmod_mat, charpoly
 
 
 ## Export the namespace of Hecke for use after Dory
+#  In expectation of being rolled into Hecke, the export system is designed so that Dory mimics the
+# behavious of a submodule of Hecke.
 
+# The exclude list is for functions in Hecke that are defunct and not implemented.
 exclude = [ :AbstractAlgebra, :CoerceMap, :CoerceMap, :Hecke, :Nemo, :RealField, :ResidueRingPolyMap,
             :_hnf_modular, :call, :can_solve, :cols, :den,  :inverse, :isid, :num,
             :parseint, :pmaximal_order, :qq, :random_SMatSLP, :rows, :strongequal,

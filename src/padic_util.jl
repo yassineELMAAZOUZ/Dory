@@ -716,7 +716,7 @@ import Hecke.inv
     inv( A::Hecke.MatElem{padic} ) -> Hecke.MatElem{padic}
 
 Matrix inverse. Computes matrix `B` such that A*B = I, where I is the identity matrix.
-Computed by solving the left-division N = M \ I.
+Computed by solving the left-division N = M \\ I.
 """
 function inv(A::Hecke.MatElem{padic})
     if size(A,1) != size(A,2)
@@ -762,17 +762,35 @@ function inv_unit_lower_triangular(L)
     return L2
 end
 
-# A slightly generalized version of solve
-# If A,b have different precisions, some strange things happen.
-# TODO: honestly, just call this solve.
-#
-# Parameter `stable` determines whether qr or svd method is used. Default is for qr (speed).
-#
-function rectangular_solve(A::Hecke.MatElem{padic}, b_input::Hecke.MatElem{padic}; stable::Bool=false)
+@doc Markdown.doc"""
+    rectangular_solve(A::Hecke.MatElem{padic}, b_input::Hecke.MatElem{padic}; stable::Bool=false)
+                                                                        --> (nu :: Int64,N::Hecke.MatElem{padic})
+
+Solves the linear system A*N = b. The output `nu` is the dimension of the nullspace. Parameter `stable` determines whether `padic_qr` or `svd` method is used. Default is qr (for speed).
+
+WARNINGS:
+If `A,b_input` have different precisions, maximal precision output is not guarenteed.
+Underdetermined solve not implemented.
+"""
+function rectangular_solve(A::Hecke.MatElem{padic}, b::Hecke.MatElem{padic}; stable::Bool=false)
+    return rectangular_solve!(A, deepcopy(b), stable)
+end
+
+@doc Markdown.doc"""
+    rectangular_solve(A::Hecke.MatElem{padic}, b_input::Hecke.MatElem{padic}; stable::Bool=false)
+                                                                        --> (nu :: Int64,N::Hecke.MatElem{padic})
+
+Solves the linear system A*N = b inplace. The output `nu` is the dimension of the nullspace. Parameter `stable` determines whether `padic_qr` or `svd` method is used. Default is qr (for speed).
+
+WARNINGS:
+If `A,b_input` have different precisions, maximal precision output is not guarenteed.
+Underdetermined solve not implemented.
+"""
+function rectangular_solve!(A::Hecke.MatElem{padic}, b::Hecke.MatElem{padic}; stable::Bool=false)
     if !stable
-        return _lu_rectangular_solve(A::Hecke.MatElem{padic}, b_input::Hecke.MatElem{padic})
+        return _svd_rectangular_solve(A::Hecke.MatElem{padic}, b::Hecke.MatElem{padic})
     else
-        return _svd_rectangular_solve(A::Hecke.MatElem{padic}, b_input::Hecke.MatElem{padic})
+        return _lu_rectangular_solve(A::Hecke.MatElem{padic}, b::Hecke.MatElem{padic})
     end
 end
 

@@ -12,15 +12,9 @@
 #                                                                                            #
 ##############################################################################################
 
-# broadcast over the matrix and return a new matrix.
-# note that the function must return an element x such that parent(x) is a ring
-#
-# NOTE: Sadly, this does not hook into Julia's dot-broadcast syntax. In theory it is possible
-# to broadcast and return the same data type, but I don't know how to do that.
-# 
-#function Base.broadcast(f, A::Hecke.Generic.Mat{T} where T)
-#    return matrix( parent(f(A[1,1])), f.(A.entries))
-#end
+######################################
+# Broadcasting
+######################################
 
 
 struct MyStyle <: Base.BroadcastStyle end
@@ -128,10 +122,6 @@ function Base.setindex!(A::Hecke.Generic.MatSpaceElem{T} where T, x, I::Cartesia
     return setindex!(A,x,I[1],I[2])
 end
 
-# In theory this works, but the matrix never ends up with the right shape.
-#function Base.iterate(A::Hecke.Generic.Mat{T}, state=1) where T
-#    return iterate(A.entries, state)
-#end
 
 function Base.collect(A::Hecke.Generic.MatSpaceElem{T}, state=1) where T
     return A.entries
@@ -149,14 +139,6 @@ end
 function Hecke.matrix(R::Hecke.Nemo.AbstractAlgebra.NCRing, A::Array{Array{T,1},1} where T)
     return matrix( R, hcat(A...) )
 end
-
-
-# function Hecke.matrix(R, A::Array{Array{T,1},1} where T <: Hecke.NCRingElem)
-#     return matrix( R, hcat(A...) )
-# end
-
-# Conversion to Julia matrices.
-# ...
 
 
 import Base./
@@ -183,7 +165,15 @@ end
 # Fails to compute nullspace for zero matrix.
 
 ## Make things a little more consistent with the other Julia types
-function my_nullspace(A :: T) where T <: Union{nmod_mat, fmpz_mat}
+@doc Markdown.doc"""
+    my_nullspace(A :: T) where T <: Union{nmod_mat, fmpz_mat, gfp_mat}
+
+Computes the nullspace of a matrix `A` with the indicated types. Fixes the bug in Flint with the
+correct return for the nullspace of the zero matrix.
+
+(Should just do a pull-request to Nemo to fix this.)
+"""
+function my_nullspace(A :: T) where T <: Union{nmod_mat, fmpz_mat, gfp_mat}
     if iszero(A)
         return size(A,2), identity_matrix(A.base_ring, size(A,2))
     end
@@ -199,27 +189,29 @@ end
 ##############################################################################################
 
 
-# TODO: Assert the correct type for the parent.
 struct MyEigen{T}
-    base_ring::Any
+    base_ring::Hecke.Generic.Ring
     values::Array{T,1}
     vectors::Hecke.Generic.MatElem{T}
 end
 
 struct EigenSpaceDec{T}
-    base_ring::Any
+    base_ring::Hecke.Generic.Ring
     values::Array{T,1}
     spaces::Array{S, 1} where S <: Hecke.Generic.MatElem{T}
 end
 
-# Computes the eigen spaces of a generic matrix, and returns a list of
-# matrices whose columns are generators for the eigen spaces.
+@doc Markdown.doc"""
+    eigspaces(A::Hecke.Generic.MatElem{T}) where T --> EigenSpaceDec{T}
+
+Computes the eigen spaces of a generic matrix, and returns a list of
+matrices whose columns are generators for the eigen spaces.
+"""
 function eigspaces(A::Hecke.Generic.MatElem{T}) where T
     R,_ = PolynomialRing(A.base_ring)
     g = charpoly(R, A)
     rts = roots(g)
     if isempty(rts)
-        #error("Not implemented if no roots of char. poly. over the finite field")
         rts = Array{T,1}()
     end
     
@@ -230,12 +222,13 @@ end
     
 # Returns an eigen factorization structure like the default LinearAlgebra.eigen function.
 #
-# Fails when A mod p has no eigenvalues, because list has eltype Any
 """
 eigen(A::nmod_mat)
 
 Computes the Eigenvalue decomposition of A. Requires factorization of polynomials implemented
-over the base ring. 
+over the base ring.
+
+(Depreciated. Eigspaces is better to use.)
 """
 function eigen(A::Hecke.Generic.MatElem{T}) where T
     E = eigspaces(A)
@@ -253,12 +246,22 @@ function _spacecat(E::EigenSpaceDec)
     end
 end
 
-# See usual eigvecs
+
+@doc Markdown.doc"""
+    eigvecs( A :: Hecke.Generic.MatElem{T}) where T -> A :: Hecke.Generic.MatElem{T}
+
+Return a matrix M whose columns are the eigenvectors of A. (The kth eigenvector can be obtained from the
+slice M[:, k].)
+"""
 function eigvecs(A::Hecke.Generic.MatElem{T}) where T
     return _spacecat(eigspaces(A))
 end
 
-# See usual eigvals
+
+@doc Markdown.doc"""
+    eigvals(A::Hecke.Generic.MatElem{T}) where T -> values :: Array{T,1}
+Return the eigenvalues of A.
+"""
 function eigvals(A::Hecke.Generic.MatElem{T}) where T
     return eigen(A).values
 end
@@ -266,24 +269,32 @@ end
 
 # Needs to be more robust. Also applied to the situation A is square but not of rank 1.
 #
-# a slightly generalized version of solve
-# WARNING: does not check if the top block is non-singular
-function rectangular_solve(M::Hecke.MatElem{T}, b::Hecke.MatElem{T}) where T
+@doc Markdown.doc"""
+    rectangular_solve(A::Hecke.MatElem{T}, b::Hecke.MatElem{T}; suppress_error=false) where T 
+                                                                                    --> x ::Hecke.MatElem{T}
 
-    if rows(M) < cols(M)
-        error("Not implemented when rows(M) < cols(M)")
-    end
-    # Extract top nxn block
-    A = M[1:cols(M),:]
+Solve the possibly overdetermined linear equation Ax = b. If no solution exists returns an error.
+Generally not intended for use.
 
-    
-    x = solve(A,b[1:cols(M),:])
-    
-    if iszero(M*x - b)
-        return x
-    else
-        error("Linear system does not have a solution")
+WARNINGS:
+---------
+This function is very unsafe. It does not do basic sanity checks and will fail if the top
+nxn block is singular.
+"""
+function rectangular_solve(A::Hecke.MatElem{T}, b::Hecke.MatElem{T}; suppress_error=false) where T
+
+    if !suppress_error
+        error("Not implemented correctly. If you really want to use this function, set 'suppress_error=true'.")
     end
+    
+    rows(A) < cols(A) && error("Not implemented when rows(A) < cols(A)")
+
+    # Extract top nxn block and solve using standard method.
+    B = A[1:cols(M),:]
+    x = solve(B,b[1:cols(M),:])
+
+    !iszero(A*x - b) && error("Linear system does not have a solution")
+    return x
 end
 
 
