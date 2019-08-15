@@ -1006,11 +1006,14 @@ function inverse_iteration!(A,shift,V)
     Array{padic,1}([inv_scale_factor*nu for nu in E.values])
 end
 
-# Given an approximate subspace to an invariant subspace, return the
-# invariant subspace and the eigenvalue.
-#
-# Raises an error if there is a failure of convergence.
-#
+
+"""
+    inverse_iteration(A::Hecke.MatElem{padic}, shift :: padic, v ::Hecke.MatElem{padic}  ) -> Hecke.MatElem{padic}
+
+Iterate `v = (A-shift*I)^{-1} v`. The inverse is cached at the beginning of the computation. The columns of the entry `v` define a subspace.
+
+If subspace iteration does not satisfy A*v ⊆ v, an error is raised.
+"""
 function inverse_iteration(A, shift, v)
     w = deepcopy(v)
     wlist,nulist = inverse_iteration!(A,shift,w)    
