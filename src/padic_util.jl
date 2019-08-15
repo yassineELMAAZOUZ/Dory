@@ -777,7 +777,7 @@ function rectangular_solve(A::Hecke.MatElem{padic}, b::Hecke.MatElem{padic}; sta
 end
 
 @doc Markdown.doc"""
-    rectangular_solve(A::Hecke.MatElem{padic}, b_input::Hecke.MatElem{padic}; stable::Bool=false)
+    rectangular_solve!(A::Hecke.MatElem{padic}, b_input::Hecke.MatElem{padic}; stable::Bool=false)
                                                                         --> (nu :: Int64,N::Hecke.MatElem{padic})
 
 Solves the linear system A*N = b inplace. The output `nu` is the dimension of the nullspace. Parameter `stable` determines whether `padic_qr` or `svd` method is used. Default is qr (for speed).
@@ -787,7 +787,7 @@ If `A,b_input` have different precisions, maximal precision output is not guaren
 Underdetermined solve not implemented.
 """
 function rectangular_solve!(A::Hecke.MatElem{padic}, b::Hecke.MatElem{padic}; stable::Bool=false)
-    if !stable
+    if stable
         return _svd_rectangular_solve(A::Hecke.MatElem{padic}, b::Hecke.MatElem{padic})
     else
         return _lu_rectangular_solve(A::Hecke.MatElem{padic}, b::Hecke.MatElem{padic})
