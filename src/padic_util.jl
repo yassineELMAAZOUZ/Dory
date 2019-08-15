@@ -773,7 +773,7 @@ If `A,b_input` have different precisions, maximal precision output is not guaren
 Underdetermined solve not implemented.
 """
 function rectangular_solve(A::Hecke.MatElem{padic}, b::Hecke.MatElem{padic}; stable::Bool=false)
-    return rectangular_solve!(A, deepcopy(b), stable)
+    return rectangular_solve!(A, deepcopy(b), stable=stable)
 end
 
 @doc Markdown.doc"""
