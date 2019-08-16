@@ -2,18 +2,18 @@
 
 [[AbstractAlgebra]]
 deps = ["InteractiveUtils", "LinearAlgebra", "Markdown", "Random", "SparseArrays", "Test"]
-git-tree-sha1 = "c0d57a3f0618bfbb214005860b9b5e5bceafa61c"
+git-tree-sha1 = "0d4f7283435bd7e12a703a3fd58aa11224a96019"
 uuid = "c3fe647b-3220-5bb0-a1ea-a7954cac585d"
-version = "0.5.0"
+version = "0.5.2"
 
 [[Base64]]
 uuid = "2a0f44e3-6c83-55bd-87e4-b1978d98bd5f"
 
 [[BinaryProvider]]
-deps = ["Libdl", "SHA"]
+deps = ["Libdl", "Logging", "SHA"]
 git-tree-sha1 = "c7361ce8a2129f20b0e05a89f7070820cfed6648"
 uuid = "b99e7846-7c00-51b0-8f62-c81ae34c0232"
-version = "0.5.4"
+version = "0.5.6"
 
 [[Dates]]
 deps = ["Printf"]
@@ -52,9 +52,9 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
 [[Nemo]]
 deps = ["AbstractAlgebra", "BinaryProvider", "InteractiveUtils", "Libdl", "LinearAlgebra", "Markdown", "Test"]
-git-tree-sha1 = "b359c25b708c3edcc2f17345d59da7169c207385"
+git-tree-sha1 = "458b0e262c235dcc2009cedfaad48c9c007a88c6"
 uuid = "2edaba10-b0f1-5616-af89-8c11ac63239a"
-version = "0.14.0"
+version = "0.14.1"
 
 [[Pkg]]
 deps = ["Dates", "LibGit2", "Markdown", "Printf", "REPL", "Random", "SHA", "UUIDs"]
