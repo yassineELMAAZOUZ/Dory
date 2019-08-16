@@ -1,5 +1,5 @@
 push!(LOAD_PATH,"../src/")
-using Documenter, DocumenterMarkdown, Dory, Pkg
+using Pkg, Documenter, DocumenterMarkdown, Dory
 makedocs(sitename="Dory.jl Documentation")
 
 deploydocs(
