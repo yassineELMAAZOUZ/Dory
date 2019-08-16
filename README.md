@@ -1,6 +1,8 @@
 
 # Dory.jl
 
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://a-kulkarn.github.io/Dory/dev)
+
 Package to extend the functionality of Nemo/Hecke. Notable additions include:
 
 ## Basic utilities
