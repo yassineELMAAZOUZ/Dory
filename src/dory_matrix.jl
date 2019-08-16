@@ -223,12 +223,12 @@ end
 # Returns an eigen factorization structure like the default LinearAlgebra.eigen function.
 #
 """
-eigen(A::nmod_mat)
+    eigen(A::nmod_mat)
 
-Computes the Eigenvalue decomposition of A. Requires factorization of polynomials implemented
+Computes the Eigenvalue decomposition of `A`. Requires factorization of polynomials implemented
 over the base ring.
 
-(Depreciated. Eigspaces is better to use.)
+(Depreciated. `eigspaces` is better to use.)
 """
 function eigen(A::Hecke.Generic.MatElem{T}) where T
     E = eigspaces(A)
@@ -250,8 +250,8 @@ end
 @doc Markdown.doc"""
     eigvecs( A :: Hecke.Generic.MatElem{T}) where T -> A :: Hecke.Generic.MatElem{T}
 
-Return a matrix M whose columns are the eigenvectors of A. (The kth eigenvector can be obtained from the
-slice M[:, k].)
+Return a matrix `M` whose columns are the eigenvectors of `A`. (The kth eigenvector can be obtained from the
+slice `M[:, k]`.)
 """
 function eigvecs(A::Hecke.Generic.MatElem{T}) where T
     return _spacecat(eigspaces(A))
@@ -260,7 +260,7 @@ end
 
 @doc Markdown.doc"""
     eigvals(A::Hecke.Generic.MatElem{T}) where T -> values :: Array{T,1}
-Return the eigenvalues of A.
+Return the eigenvalues of `A`.
 """
 function eigvals(A::Hecke.Generic.MatElem{T}) where T
     return eigen(A).values

@@ -148,21 +148,21 @@ struct QRPadicSparsePivoted
 end
 
 @doc Markdown.doc"""
-    padic_qr(A :: Hecke.Generic.MatElem{padic} ; col_pivot :: Union{Val{true},Val{false}}) --> F
+    padic_qr(A :: Hecke.Generic.MatElem{padic} ; col_pivot :: Union{Val{true},Val{false}}) --> F :: QRPadicPivoted
 
 The return type of `F` is a QRPadicPivoted, with fields `F.Q, F.R, F.p, F.q` described below.
                  
-Compute the p-adic QR factorization of A. More precisely, compute matrices `Q`,`R`, and an arrays `p`, `q` such that 
+Compute the p-adic QR factorization of `A`. More precisely, compute matrices `Q`,`R`, and an arrays `p`, `q` such that 
 
     A[F.p,F.q] = Q*R
 
-If col_pivot=Val(false), then F.q = [1,2,...,size(A,2)].
+If `col_pivot=Val(false)`, then `F.q = [1,2,...,size(A,2)]`.
 
 #-------------------
 
 INPUTS:
-A         -- a matrix over Qp, A::Hecke.Generic.MatElem{padic}
-col_pivot -- a type, either Val(true) or Val(false), indicating whether column permutations
+`A`         -- a matrix over Qp
+`col_pivot` -- a type, either `Val(true)` or `Val(false)`, indicating whether column permutations
              should be used to move p-adically large entries to the pivot position.
 
 """
@@ -1025,12 +1025,12 @@ function inverse_iteration!(A,shift,V)
 end
 
 
-"""
+@doc Markdown.doc"""
     inverse_iteration(A::Hecke.MatElem{padic}, shift :: padic, v ::Hecke.MatElem{padic}  ) -> Hecke.MatElem{padic}
 
-Iterate `v = (A-shift*I)^{-1} v`. The inverse is cached at the beginning of the computation. The columns of the entry `v` define a subspace.
+Iterate `v = (A-shift*I)^(-1) * v`. The inverse is cached at the beginning of the computation. The columns of the entry `v` define a subspace.
 
-If subspace iteration does not satisfy A*v ⊆ v, an error is raised.
+If subspace iteration does not satisfy `A*v ⊆ v`, an error is raised.
 """
 function inverse_iteration(A, shift, v)
     w = deepcopy(v)
@@ -1038,6 +1038,16 @@ function inverse_iteration(A, shift, v)
     return wlist,nulist
 end
 
+@doc Markdown.doc"""
+    inverse_iteration_decomposition(A::Hecke.MatElem{padic}, Amp::Hecke.MatElem{nmod_mat}  ) -> values, spaces
+
+Return types.
+    values :: Array{padic,1}
+    spaces :: Array{ Hecke.MatElem{padic}, 1}
+
+Internal function. Compute an invariant subspace decomposition of `A` using its reduction mod-p `Amp`.
+Makes one call to `inverse_iteration` for each eigenvalue of `Amp`. 
+"""
 function inverse_iteration_decomposition(A, Amp)
 
     Qp = A.base_ring
@@ -1136,7 +1146,12 @@ end
 ###############################################################################
 
 # Also return a basis by default.
+@doc Markdown.doc"""
+    hessenberg!(A::Hecke.Generic.Mat{T} where T <: padic; basis=Val(true)) --> nothing or B::Hecke.Generic.Mat{T}
 
+Computes the Hessenberg form of `A` inplace. If `basis=Val(true)`, also return the matrix B such that
+    AV = VB
+"""
 function hessenberg!(A::Hecke.Generic.Mat{T} where T <: padic; basis=Val(true))
     !issquare(A) && error("Dimensions don't match in hessenberg")
     R = base_ring(A)
@@ -1217,7 +1232,7 @@ end
 > which is similar to M. The upper Hessenberg form has nonzero entries
 > above and on the diagonal and in the diagonal line immediately below the
 > diagonal.
-> A padically stable form of the algorithm is used, where pivots are 
+> A p-adically stable form of the algorithm is used, where pivots are 
 > selected carefully.
 """
 function hessenberg(A::Hecke.Generic.Mat{T} where T <: padic, basis=Val(true))
@@ -1233,13 +1248,15 @@ end
 #************************************************
 
 """
-   blockschurform
+    block_schur_form(A::Hecke.Generic.Mat{T} where T <: padic) --> B,V :: Hecke.Generic.Mat{T}
 
-    Computes the block schur form of a padic matrix A, where the
-    blocks correspond to the different eigenvalues of A modulo p.
+Computes the block schur form `B` of a padic matrix `A`, where the
+blocks correspond to the different eigenvalues of `A modulo p`. The outputs satisfy
+`AV = VB`
 
-    NOTE: Presently, block_shur_form does not also return the 
-    change of basis matrix.
+NOTE: 
+Presently, `block_shur_form` does not attempt to further refine the blocks recursively. Theoretical
+details need to be worked out to make the best practical improvements of the algorithm. 
 """
 function block_schur_form(A::Hecke.Generic.Mat{T} where T <: padic)
 
@@ -1272,11 +1289,15 @@ function block_schur_form(A::Hecke.Generic.Mat{T} where T <: padic)
     return B,V
 end
 
+@doc Markdown.doc"""
+    roots_with_multiplicities(f)
+
+Returns a list of roots of the polynomial `f`, with the multiplicities occuring in the factorization.
+"""
 function roots_with_multiplicities(f)
     F = Hecke.factor(f)
     return [(-g(0), m) for (g,m) in F if Hecke.degree(g) == 1]
 end
-
 
 
 function _normalize_matrix(A)
@@ -1290,19 +1311,20 @@ function _normalize_matrix(A)
 end
 
 """
-eigvecs(A::Hecke.Generic.Mat{T} where T <: padic)
+    eigvecs(A::Hecke.Generic.Mat{T} where T <: padic)
 
 Compute the eigenvectors of a padic matrix iteratively.
 
 The `method` parameter selects the method to be used to compute the eigenvectors.
-The intended options are:
+The options are:
 
 -- "inverse"
 -- "classical"
 -- "power"
--- "qr" or "schur"
+-- "qr"
+-- "schur"
 
-The default is "inverse", since at the moment this is the one that is implemented.
+The default is `inverse`, since at the moment this is the one that is implemented.
 
 """
 
@@ -1447,47 +1469,10 @@ end
 
 ############################################################################################
 
-# function for testing
 """
-Computes if v is an eigenvector of A. If so, returns the eigenvalue as well. If not, return the error.
-
-TODO: This function needs some work. Also the wacky return structure should be changed.
+    block_data(A)
+(Non-critical testing function). Print the valuations of the main/sub diagonal.
 """
-function iseigenvector(A,v)
-    i=1
-    while i<=size(v,1)
-        if !iszero(v[i,1])
-            break
-        end
-        i+=1
-    end
-    if i>size(v,1)
-        return false, "zero"
-    end
-    e = (A*v)[i,1]/v[i,1]
-
-    if iszero(A*v - (A*v)[i,1]/v[i,1]*v)
-        return true,e
-    else
-        return false, A*v - (A*v)[i,1]/v[i,1]*v
-    end
-end
-
-
-
-#PA - eP = LU
-# PAinv(P) - eI = LUinv(P)
-# inv(L)PAinv(P)L = Uinv(P)L + eI
-#inv(L)(PA - eP)inv(P)L = Uinv(P)L
-#inv(L)PAinv(P)L  = Uinv(P)L + eI
-
-function one_iteration(A,Q,shift)
-    eI = Qp(shift)*(identity_matrix(Qp,size(A,1)))
-    L,U,P = padic_qr(A-eI)
-    return U*inv(P)*L + eI, Q*inv(P)*L
-end
-
-# Print the valuations of the main/sub diagonal.
 function block_data(A)
 
     n = size(A,2)
