@@ -311,54 +311,6 @@ end
 #######################################################################################
 
 ### "Seriously!? how is this not implemented?" block.
-
-import Hecke.swap_cols!
-@doc Markdown.doc"""
-   Hecke.swap_cols!(A::SMat{T},i::Int,j::Int) -> nothing
-
-The correct implementation of Hecke.swap_cols! for sparse matrices.
-"""
-function Hecke.swap_cols!(A::SMat{T}, i::Int, j::Int) where T
-  @assert 1 <= i <= ncols(A) && 1 <= j <= ncols(A)
-
-  if i == j
-    return A
-  end
-
-  for r in A.rows
-    if i in r.pos
-      i_i = findfirst(r.pos, i)
-      val_i = r.values[i_i]
-      if j in r.pos
-        i_j = findfirst(r.pos, j)
-        val_j = r.values[i_j]
-
-        r.values[i_i], r.values[i_j] = r.values[i_j], r.values[i_i]
-      else
-        t = r.values[i_i]
-        deleteat!(r.pos, i_i)
-        deleteat!(r.values, i_i)
-        k = searchsortedfirst(r.pos, j)
-        insert!(r.pos, k, j)
-        insert!(r.values, k, t)
-      end
-    else
-      if j in r.pos
-        i_j = findfirst(r.pos, j)
-        val_j = r.values[i_j]
-
-        t = r.values[i_j]
-        deleteat!(r.pos, i_j)
-        deleteat!(r.values, i_j)
-        k = searchsortedfirst(r.pos, i)
-        insert!(r.pos, k, i)
-        insert!(r.values, k, t)
-      end
-    end
-  end
-  return A
-end
-
 import Base.findfirst
 function Base.findfirst(A::Array{Int64,1}, j::Int64)
     return findfirst(x->(x==j), A)
