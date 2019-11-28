@@ -20,6 +20,7 @@ for n in [10,100,200,300]
 
     tot_time_power = 0
     tot_time_class = 0
+    tot_time_schur = 0
     
     for j=1:num_samp
         A = rand_input(n)
@@ -34,10 +35,18 @@ for n in [10,100,200,300]
         E2 = Dory._eigenspaces_by_classical(A)
         t1 = time()
         tot_time_class += t1-t0
+        
+        t0 = time()
+        E2 = Dory.block_schur_form(A)
+        t1 = time()
+        tot_time_schur += t1-t0
+        
     end
 
     avg_time_power = tot_time_power/num_samp
     avg_time_class = tot_time_class/num_samp
+    avg_time_schur = tot_time_schur/num_samp
+
     
-    @info "" n avg_time_power avg_time_class
+    @info "" n avg_time_power avg_time_class avg_time_schur
 end
