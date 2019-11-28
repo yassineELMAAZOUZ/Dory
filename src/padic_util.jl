@@ -25,9 +25,10 @@ function /(x::padic,y::padic) return x//y end
 """
 
 """
-function precision(Qp::FlintPadicField) return Qp.prec_max end
-function prec(Qp::FlintPadicField) return Qp.prec_max end
+#function precision(Qp::FlintPadicField) return Qp.prec_max end
+#function prec(Qp::FlintPadicField) return Qp.prec_max end
 
+prec(Qp::FlintPadicField) = precision(Qp)
     
 # Potential fix for the bug with the valuation function
 # Note: there may be issues if Hecke depends on the
@@ -62,13 +63,6 @@ end
 ## Test utilities
 function test_rings()
     return Qp = FlintPadicField(7,20), ResidueRing(FlintZZ,7)
-end
-
-import Base.rand
-function rand(Qp::FlintPadicField)
-    p = Qp.p
-    N = Qp.prec_max
-    return Qp(rand(1:BigInt(p)^N))*Qp(p)^(rand(-N:N))
 end
 
 function rand_padic_int(Qp::FlintPadicField)
@@ -1087,8 +1081,16 @@ end
 #
 ###############################################################################
 
-function _eigenspaces_by_classical(A)
-    error("Classical Algorithm not implemented in Julia. I invite the brave to implement the Zaussenhaus Round-4 algorithm.")
+function _eigenspaces_by_classical(A::Generic.MatElem{T}) where T
+
+    # TODO: There will be precision errors since `charpoly` is only computed
+    #       at a flat precision.
+    f = charpoly(A)
+    rts = map(x->x[1], roots(f))
+    n = size(A,2)
+    I = identity_matrix(base_ring(A), n)
+    
+    return EigenSpaceDec(base_ring(A), T[rt for rt in rts], Generic.MatElem{T}[nullspace(A - rt*I)[2] for rt in rts])
 end
 
 ###############################################################################
@@ -1222,14 +1224,18 @@ function block_schur_form(A::Hecke.Generic.Mat{T} where T <: padic)
 
     B, V = hessenberg(A)
     id= identity_matrix(Qp, size(B,1))
+
+    rts_and_muls = roots_with_multiplicities(chiAp)
+    rts = map(x->x[1], rts_and_muls)
+    m = isempty(rts) ? 0 : maximum(map(x->x[2], rts_and_muls))
     
-    for (rt,m) in roots_with_multiplicities(chiAp)
+    for rt in rts
         
         lambdaI = lift(rt)*id
 
         # Regarding convergence. It seems like it needs a little extra time to
         # sort the terms via permutation.
-        for i in 1:N*m
+        for i in 1:N*m+1
             F = padic_qr(B - lambdaI)
 
             # Note about Julia's syntax. A[:,F.p] = A*inv(P), for a permutation P.
@@ -1289,20 +1295,19 @@ function eigspaces(A::Hecke.Generic.Mat{T} where T <: padic; method="power")
 
     ## Set constants
     Qp = A.base_ring
-
     
     if iszero(A)        
         return EigenSpaceDec(Qp, [zero(Qp)] , [identity_matrix(Qp, size(A,1))] )
     elseif  size(A,1) == 1
         return EigenSpaceDec(Qp, [A[1,1]] , [identity_matrix(Qp, size(A,1))] )
     end
-
+    
     # Dispatch
     if method == "classical"
-        error("Not Implemented")
+        return _eigenspaces_by_classical(A)
         
     elseif method == "inverse"
-        return  _eigenspaces_by_inverse_iteration(A)
+        return _eigenspaces_by_inverse_iteration(A)
         
     elseif method == "schur" || method == "qr"
         error("Not Implemented. However, block_shur_form is available to compute the schur form.")
