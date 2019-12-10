@@ -60,7 +60,13 @@ function modp(x::padic)
     return Fp(lift(x))
 end
 
-## Test utilities
+
+##############################################################################################
+#                                                                                            #
+#                          Test generation functions                                         #
+#                                                                                            #
+##############################################################################################
+
 function test_rings()
     return Qp = FlintPadicField(7,20), ResidueRing(FlintZZ,7)
 end
@@ -71,7 +77,6 @@ function rand_padic_int(Qp::FlintPadicField)
     return Qp(rand(1:BigInt(p)^N))
 end
 
-
 function random_test_matrix(Qp,n=4)
     A = matrix(Qp, fill(zero(Qp),n,n))
     for i=1:n
@@ -80,6 +85,30 @@ function random_test_matrix(Qp,n=4)
         end
     end
     return A
+end
+
+function random_matrix_with_eigenblocks(Qp,n=4, block_size=2; jordan=false)
+
+    # Specify a diagonal matrix with a large block.
+    a = rand_padic_int(Qp)
+    dia = vcat([rand_padic_int(Qp) for i=1:(n-block_size)], fill(a, block_size))
+
+    D = Hecke.diagonal_matrix(dia)
+    if jordan==true
+        for i=n-block_size+1:n-1
+            D[i,i+1] = 1
+        end
+    end
+    
+    # Choose a random GL_n(Zp) matrix.
+    B = random_test_matrix(Qp,n)
+    while valuation(det(B)) != 0
+        B = random_test_matrix(Qp,n)
+    end
+
+    # Apply the random conjugation.
+    Binv = rectangular_solve(B, identity_matrix(Qp,n))
+    return Binv*D*B, dia, B
 end
 
 ##############################################################################################
@@ -425,7 +454,7 @@ function padic_qr(A::Hecke.SMat{padic};
         end
 
         # Scan through the matrix to check if a rowswap is needed.
-        valuation_index_pairs = [ (valuation(U[j, piv]), j) for j=k:n if !iszero(U[j, piv]) ]        
+        valuation_index_pairs = [ (valuation(U[j, piv]), j) for j=k:n if !iszero(U[j, piv]) ]
             
         if !isempty(valuation_index_pairs)
 
@@ -1090,7 +1119,8 @@ function _eigenspaces_by_classical(A::Generic.MatElem{T}) where T
     n = size(A,2)
     I = identity_matrix(base_ring(A), n)
     
-    return EigenSpaceDec(base_ring(A), T[rt for rt in rts], Generic.MatElem{T}[nullspace(A - rt*I)[2] for rt in rts])
+    return EigenSpaceDec(base_ring(A), T[rt for rt in rts],
+                         Generic.MatElem{T}[nullspace(A - rt*I)[2] for rt in rts])
 end
 
 ###############################################################################
@@ -1222,9 +1252,11 @@ function block_schur_form(A::Hecke.Generic.Mat{T} where T <: padic)
     Amp   = modp.(Aint)
     chiAp = charpoly(Amp)
 
-    B, V = hessenberg(A)
+    B, V = hessenberg(A) # There is a precision bug in hessenberg form.
     id= identity_matrix(Qp, size(B,1))
 
+    @info "" block_data(B)
+    
     rts_and_muls = roots_with_multiplicities(chiAp)
     rts = map(x->x[1], rts_and_muls)
     m = isempty(rts) ? 0 : maximum(map(x->x[2], rts_and_muls))
@@ -1241,6 +1273,8 @@ function block_schur_form(A::Hecke.Generic.Mat{T} where T <: padic)
             # Note about Julia's syntax. A[:,F.p] = A*inv(P), for a permutation P.
             B = F.R[:,F.p] * F.Q + lambdaI
             V = inv_unit_lower_triangular(F.Q)*V[F.p,:]
+
+            @info "" block_data(B)
         end        
     end
     
