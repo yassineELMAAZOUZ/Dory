@@ -111,7 +111,7 @@ function factor(f :: Hecke.Generic.Poly{padic})
     H = factor_mod_pk_init(f_int,Qp.p)
     D = factor_mod_pk(H,N)
 
-    return Dict( QpX(lift(k))=>D[k] for k in keys(D))   
+    return Dict(change_base_ring(Qp,k)=>D[k] for k in keys(D))   
 end
 
 ##############################################################################################
@@ -179,7 +179,7 @@ function padic_qr(A::Hecke.Generic.MatElem{padic};
     # We cache the maximum value of the matrix at each step, so we save an iteration pass
     # through the matrix.
     val_list = float64_valuation.(U)
-    min_val, min_val_index = findmin( val_list );
+    min_val, min_val_index = findmin(val_list);
     
     # Allocate specific working memory for multiplications.
     container_for_swap    = padic(U[1,1].N)
@@ -1086,7 +1086,8 @@ function _eigenspaces_by_classical(A::Generic.MatElem{T}) where T
     # TODO: There will be precision errors since `charpoly` is only computed
     #       at a flat precision.
     f = charpoly(A)
-    rts = map(x->x[1], roots(f))
+    #rts = map(x->x[1], roots(f))
+    rts = roots(f)
     n = size(A,2)
     I = identity_matrix(base_ring(A), n)
     
@@ -1222,26 +1223,59 @@ function block_schur_form(A::Hecke.Generic.Mat{T} where T <: padic)
     Amp   = modp.(Aint)
     chiAp = charpoly(Amp)
 
-    B, V = hessenberg(A)
-    id= identity_matrix(Qp, size(B,1))
-
-    rts_and_muls = roots_with_multiplicities(chiAp)
-    rts = map(x->x[1], rts_and_muls)
-    m = isempty(rts) ? 0 : maximum(map(x->x[2], rts_and_muls))
+    ####################################################
+    # Part 1: computation of the sorted form. (Skipped)
+    ####################################################
     
-    for rt in rts
-        
-        lambdaI = lift(rt)*id
+    # The first shift needs to happen before the hessenberg form.
+    # TODO: New changes:
+    # 1. Figure out the kernel + orthogonal complement of Amp
+    # r,p,L,U = lu(Amp)
+    
+    # 2. Make the basis change. We need to lift the matrices back to Qp
+    # invL = inv(L)
+    # B = lift(invL) * A * change_base_ring(Qp, L)
 
-        # Regarding convergence. It seems like it needs a little extra time to
-        # sort the terms via permutation.
-        for i in 1:N*m+1
+    # TODO: also update the permutation.
+    # V = invL
+
+    ####################################################
+    # Part 2: Main QR iteration.
+    ####################################################
+
+    B, V = hessenberg(A)
+    id = identity_matrix(Qp, size(B,1))
+
+    bottom_block_end = size(A,2)
+    rts_and_muls = roots_with_multiplicities(chiAp)
+    
+    # rts = map(x->x[1], rts_and_muls)
+    # m = isempty(rts) ? 0 : maximum(map(x->x[2], rts_and_muls))
+    
+    for (rt, m) in rts_and_muls
+
+        # Ensure that the rayleigh shift actually helps convergence.
+        rayleigh_shift = sum(A[j,j] for j=bottom_block_end-m+1:bottom_block_end)/Qp(m)
+        rayleigh_shift.N = N
+
+        if modp(rayleigh_shift) != rt
+            lambdaI = lift(rt)*id
+        else
+            lambdaI = rayleigh_shift*id
+        end
+        
+        # Regarding convergence. Some extra time is needed as QR is not always
+        # rank revealing.
+        
+        for i in 1:Int(ceil(log(2,N*m)))+2*m+3
             F = padic_qr(B - lambdaI)
 
             # Note about Julia's syntax. A[:,F.p] = A*inv(P), for a permutation P.
             B = F.R[:,F.p] * F.Q + lambdaI
             V = inv_unit_lower_triangular(F.Q)*V[F.p,:]
-        end        
+        end
+
+        bottom_block_end = bottom_block_end - m
     end
     
     return B,V
@@ -1442,4 +1476,21 @@ function block_data(A)
     data[:,n] = [valuation(A[n,n]), nothing]
     
     return data
+end
+
+function isblock_schur(A, S)
+    # Returns true if and only if S is a (weak) block Schur form for A.
+
+    n = size(A,2)
+    Qp = base_ring(A)
+    f = charpoly(modp.(A))
+    rts_and_muls = roots_with_multiplicities(f)
+
+    id = identity_matrix(Qp, n)
+    
+    for (rt, m) in rts_and_muls
+        H = S - rt*lambda
+        
+    end
+    
 end
