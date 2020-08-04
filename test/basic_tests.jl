@@ -7,7 +7,7 @@ using Dory, Test
 
     @testset "Basic version" begin
         for n=1:10
-            A = zero_matrix(Qp,n)
+            A = zero_matrix(Qp,n,n)
             F = padic_qr(A)
             @test A[F.p,F.q] == F.Q*F.R
             @test isupper_triangular(F.R)
@@ -23,7 +23,7 @@ using Dory, Test
 
     @testset "Column pivoting" begin
         for n=1:10
-            A = zero_matrix(Qp,n)
+            A = zero_matrix(Qp,n,n)
             F = padic_qr(A, col_pivot=Val(true))
             @test A[F.p,F.q] == F.Q*F.R
             @test isupper_triangular(F.R)
