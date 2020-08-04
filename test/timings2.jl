@@ -3,7 +3,7 @@ using Dory, Random
 
 # Enforce that tests are identical.
 Random.seed!(123)
-Qp = PadicField(7,100)
+Qp = PadicField(41,100)
 
 function rand_input(n)
     return matrix(Qp, n, n, [rand_padic_int(Qp) for i=1:n for j=1:n])
@@ -28,7 +28,6 @@ for n in [10,100,200]
         t0 = time()
         E = eigspaces(A)
         t1 = time()
-
         tot_time_power += t1-t0
 
         t0 = time()
