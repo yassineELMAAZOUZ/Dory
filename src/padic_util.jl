@@ -161,8 +161,14 @@ INPUTS:
 
 """
 function padic_qr(A::Hecke.Generic.MatElem{padic};
-                  col_pivot=Val(false) :: Union{Val{true},Val{false}})
+                  col_pivot=Val(false) :: Union{Val{true},Val{false}},
+                  hessenberg=Val(false) :: Union{Val{true},Val{false}})
 
+    # Check parameters
+    if hessenberg == col_pivot == Val(true)
+        error("Cannot use both col_pivot and hessenberg options in padic_qr.")
+    end
+    
     # Set constants
     n = size(A,1)::Int64
     m = size(A,2)::Int64
@@ -188,14 +194,6 @@ function padic_qr(A::Hecke.Generic.MatElem{padic};
     
     # Allocate a 2-element array to hold the index of the maximum valuation.
     min_val_index_mut = [x for x in min_val_index.I]
-
-    # Allocate a function to zero consecutive entries of a column
-    function zero_subdiagonal_of_column!(U,k::Int64)
-        for j = k+1:n
-            zero!(U[j,k])
-        end
-    end
-    
     
     for k=1:(min(n,m)::Int64)
 
@@ -211,9 +209,16 @@ function padic_qr(A::Hecke.Generic.MatElem{padic};
                 Pcol[k], Pcol[col_index] = Pcol[col_index], Pcol[k]
             end
         end
+
+        # Determing the row to stop row operations based on the matrix shape.
+        if hessenberg == Val(true)
+            row_stop = min(k+1, n)
+        else
+            row_stop = n
+        end
         
-        val_list = float64_valuation.(U[k:n,k])
-        minn, row_pivot_index = findmin( val_list );
+        val_list = float64_valuation.(U[k:row_stop,k])
+        minn, row_pivot_index = findmin(val_list);
         if minn==Inf continue end
 
         row_pivot_index=row_pivot_index+k-1;
@@ -251,15 +256,19 @@ function padic_qr(A::Hecke.Generic.MatElem{padic};
         # the "lost" digits of precision for L[j,k] can simply be set to 0.
         container_for_inv = inv(U[k,k]) 
         
-        for j=k+1:n
+        for j=k+1:row_stop
             Hecke.mul!(L[j,k],U[j,k], container_for_inv)
             L[j,k].N = parent(L[j,k]).prec_max            # L[j,k] is really an integer.
         end
 
-        zero_subdiagonal_of_column!(U,k)
-        
+        # zero the subdiagonal the of column.
+        for j = k+1:row_stop
+            zero!(U[j,k])
+        end
+
+        # Perform the row operations.
         for r=k+1:m
-            for j=k+1:n
+            for j=k+1:row_stop
                 # Compute U[j,r] = U[j,r] - L[j,k]*U[k,r]                
                 Hecke.mul!(container_for_product, L[j,k], U[k,r])
                 _unsafe_minus!(U[j,r], container_for_product)
@@ -274,8 +283,6 @@ function padic_qr(A::Hecke.Generic.MatElem{padic};
         end
     end
 
-    @assert iszero(A[P,Pcol] - L*Umat)
-    
     return QRPadicPivoted(L,Umat,P,Pcol)
 end
 
