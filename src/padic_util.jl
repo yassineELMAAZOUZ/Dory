@@ -1248,26 +1248,34 @@ function block_schur_form(A::Hecke.Generic.Mat{T} where T <: padic)
 
     bottom_block_end = size(A,2)
     rts_and_muls = roots_with_multiplicities(chiAp)
+    sort!(rts_and_muls, lt=(x,y)->(x[2]<y[2]))
     
     # rts = map(x->x[1], rts_and_muls)
     # m = isempty(rts) ? 0 : maximum(map(x->x[2], rts_and_muls))
     
     for (rt, m) in rts_and_muls
-
-        # Ensure that the rayleigh shift actually helps convergence.
-        rayleigh_shift = sum(A[j,j] for j=bottom_block_end-m+1:bottom_block_end)/Qp(m)
-        rayleigh_shift.N = N
-
-        if modp(rayleigh_shift) != rt
-            lambdaI = lift(rt)*id
-        else
-            lambdaI = rayleigh_shift*id
-        end
         
         # Regarding convergence. Some extra time is needed as QR is not always
         # rank revealing.
+
+        if m == 1
+            iter_bound = Int(ceil(log(2,N))) + 5
+        else
+            iter_bound = m*N+2*m+3
+        end
         
-        for i in 1:Int(ceil(log(2,N*m)))+2*m+3
+        for i in 1:iter_bound
+
+            # Ensure that the rayleigh shift actually helps convergence.
+            rayleigh_shift = sum(B[j,j] for j=bottom_block_end-m+1:bottom_block_end)/Qp(m)
+            rayleigh_shift.N = N
+
+            if modp(rayleigh_shift) != rt
+                lambdaI = lift(rt)*id
+            else
+                lambdaI = rayleigh_shift*id
+            end
+
             F = padic_qr(B - lambdaI)
 
             # Note about Julia's syntax. A[:,F.p] = A*inv(P), for a permutation P.
