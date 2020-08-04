@@ -1283,9 +1283,10 @@ function block_schur_form(A::Hecke.Generic.Mat{T} where T <: padic)
                 lambdaI = rayleigh_shift*id
             end
 
-            F = padic_qr(B - lambdaI)
-
+            # QR-step.
             # Note about Julia's syntax. A[:,F.p] = A*inv(P), for a permutation P.
+            #
+            F = padic_qr(B - lambdaI, hessenberg=Val(true))
             B = F.R[:,F.p] * F.Q + lambdaI
             V = inv_unit_lower_triangular(F.Q)*V[F.p,:]
         end
