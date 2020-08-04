@@ -1486,19 +1486,47 @@ function block_data(A)
     return data
 end
 
-function isblock_schur(A, S)
-    # Returns true if and only if S is a (weak) block Schur form for A.
+function isweak_block_schur_hessenberg(S)
+    # Returns true if and only if S is a (weak) block Schur form. It is
+    # assumed that S is also a Hessenberg matrix.
 
-    n = size(A,2)
-    Qp = base_ring(A)
-    f = charpoly(modp.(A))
-    rts_and_muls = roots_with_multiplicities(f)
+    n = size(S,2)
+    Qp = base_ring(S)
+    f = charpoly(modp.(S))
+    # rts_and_muls = roots_with_multiplicities(f)
 
-    id = identity_matrix(Qp, n)
+    # 1. Determine the blocks
+    blocks = []
+    block_start = 1
     
-    for (rt, m) in rts_and_muls
-        H = S - rt*lambda
-        
+    for j=1:n
+        if j==n || iszero(S[j+1,j])
+            push!(blocks, S[block_start:j, block_start:j])
+            block_start = j+1
+        end
     end
-    
+
+    block_charpolys = [charpoly(parent(f), modp.(B)) for B in blocks]
+
+    # 2. Ensure that if g is a characteristic polynomial of a block, then either g has no roots
+    #    or g = (t-lambda)^m.
+
+    for g in block_charpolys
+        g_rt_muls = roots_with_multiplicities(g)
+
+        if length(g_rt_muls) == 0
+            continue
+        elseif length(g_rt_muls) > 1
+            return false
+        elseif g_rt_muls[1][2] != degree(g)
+            return false
+        end
+    end
+
+    # 3. Check that the product of the block charpolys is the original charpoly.
+    #
+    # Note with the computation above this implies that all roots of f mod p have a set
+    # of associated blocks.
+
+    return prod(block_charpolys) == f ? true : false
 end
