@@ -17,3 +17,9 @@ Package to extend the functionality of Nemo/Hecke. Notable additions include:
 - padically stable hessenburg form.
 - eigenvector solver (power and inverse iterations). [Only implemented for matrices defined over Qp]
 - block schur form. [Only implemented for matrices defined over Qp]
+
+## Requirements
+- Hecke version 0.8.0. To install this version specifically use
+```pkg> add Hecke@0.8.0```
+- Nemo
+- AbstractAlgebra
