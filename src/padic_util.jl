@@ -547,8 +547,6 @@ function svd(A::Hecke.Generic.MatElem{padic})
     F = padic_qr(A, col_pivot=Val(true))
     G = padic_qr(transpose(F.R))
 
-    @assert G.p == [i for i=1:length(G.p)]
-
     U = deepcopy(F.Q)
     S = transpose(G.R)
     Vt= transpose(G.Q)
