@@ -551,8 +551,6 @@ function svd(A::Hecke.Generic.MatElem{padic})
     S = transpose(G.R)
     Vt= transpose(G.Q)
     
-    @assert iszero( A[F.p,F.q] - U*S*Vt)
-
     return SVDPadic(U,S,Vt,F.p,F.q)
 end
 
